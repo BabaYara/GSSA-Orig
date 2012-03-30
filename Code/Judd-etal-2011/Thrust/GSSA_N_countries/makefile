@@ -1,62 +1,27 @@
-CPUCC    = icc
-SDIR     = .
-HEADERS  = global.h ran.h svdcmp.h
+# Eric's Machine
+#CPP = g++
+#MKL_INC_PATH=/opt/local/include
+#MKL_LIB_PATH=/opt/local/lib
+#LDFLAGS   = -L$(MKL_LIB_PATH) -lm -lgsl -lgslcblas
+
+# Keeneland with the following modules:
+# Currently Loaded Modulefiles:
+#   1) modules                4) gold                   7) openmpi/1.5.1-intel
+#     2) torque/2.5.11          5) mkl/2011_sp1.8.273     8) PE-intel
+#       3) moab/6.1.5             6) intel/2011_sp1.8.273   9) cuda/4.1
+#
+CPP    = icpc
+MKL_INC_PATH=/opt/intel/composer_xe_2011_sp1.8.273/mkl/include
+MKL_LIB_PATH=/opt/intel/composer_xe_2011_sp1.8.273/mkl/lib/intel64
+LDFLAGS   = -L$(MKL_LIB_PATH) -lm -lpthread -openmp -Wl,--start-group -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -Wl,--end-group
+
+# Machine Independent
+CPPFLAGS = -O2 -c -I$(MKL_INC_PATH)
+
 OBJECTS  = Productivity.o GH_Quadrature.o Monomials_1.o Monomials_2.o Ord_Polynomial_N.o Num_Stab_Approx.o Accuracy_Test_N.o cholesky.o auxfuncs.o svdcmp.o qrdcmp.o simplx.o
 
-# On my own machine (with GSL)
-#IGSL    = /opt/local/include
-#LGSL    = /opt/local/lib
-#CPUFLAGS = -O2 -c -I$(SDIR) -I$(IGSL)
-#LFLAGS   = -L$(LGSL) -lm -lgsl -lgslcblas
-
-# On Keeneland (with MKL)
-IMKL     = /opt/intel/composer_xe_2011_sp1.8.273/mkl/include
-LMKL     = /opt/intel/composer_xe_2011_sp1.8.273/mkl/lib/intel64
-CPUFLAGS = -g -O3 -I$(SDIR) -I$(IMKL)
-LFLAGS   = -L $(MKL_LIB_PATH) -lpthread -openmp -Wl,--start-group -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -Wl,--end-group
-
-
-Main_GSSA_N :	Main_GSSA_N.o $(OBJECTS) $(HEADERS)
-		$(CPUCC) -o Main_GSSA_N Main_GSSA_N.o $(OBJECTS) $(LFLAGS) 
-
-Main_GSSA_N.o : 	$(SDIR)/Main_GSSA_N.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/Main_GSSA_N.cpp
-
-Productivity.o : 	$(SDIR)/Productivity.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/Productivity.cpp
-
-GH_Quadrature.o : 	$(SDIR)/GH_Quadrature.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/GH_Quadrature.cpp
-
-Monomials_1.o : 	$(SDIR)/Monomials_1.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/Monomials_1.cpp
-
-Monomials_2.o : 	$(SDIR)/Monomials_2.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/Monomials_2.cpp
-
-Ord_Polynomial_N.o : 	$(SDIR)/Ord_Polynomial_N.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/Ord_Polynomial_N.cpp
-
-Num_Stab_Approx.o : 	$(SDIR)/Num_Stab_Approx.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/Num_Stab_Approx.cpp
-
-Accuracy_Test_N.o : 	$(SDIR)/Accuracy_Test_N.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/Accuracy_Test_N.cpp
-
-cholesky.o : 	$(SDIR)/cholesky.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/cholesky.cpp
-
-auxfuncs.o : 	$(SDIR)/auxfuncs.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/auxfuncs.cpp
-
-svdcmp.o : 	$(SDIR)/svdcmp.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/svdcmp.cpp
-
-qrdcmp.o : 	$(SDIR)/qrdcmp.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/qrdcmp.cpp
-
-simplx.o : 	$(SDIR)/simplx.cpp  $(HEADERS)
-		$(CPUCC) $(CPUFLAGS) $(SDIR)/simplx.cpp
+Main_GSSA_N :	Main_GSSA_N.o $(OBJECTS)
+		$(CPP) -o Main_GSSA_N Main_GSSA_N.o $(OBJECTS) $(LDFLAGS) 
 
 clean :
 	rm -f *.o
