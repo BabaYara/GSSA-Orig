@@ -175,10 +175,15 @@ int main()
     // procedure to the given T<=10,000 and N<=10
     Ndat = 10; // the number of countries in the exisiting dataset
     ifstream fileIn;
+    REAL trash;
     fileIn.open(fileName);
     for(ix = 0 ; ix < T ; ++ix){
       for(jx = 0 ; jx < Ndat ; ++jx){
-	fileIn >> a[ix*N + jx];
+	if(jx < N){
+	  fileIn >> a[ix*N + jx];
+	} else {
+	  fileIn >> trash;
+	}
       }
     }
     fileIn.close();
@@ -826,15 +831,19 @@ int main()
   // Restrict the series of the productivity levels for the test on a
   // stochastic simulation to the given T_test<=10,200 and N<=10
   REAL* a_test = new REAL[T_test*N];
+  REAL trash;
   ifstream fileIn;
   fileIn.open(fileName);
   for(ix = 0 ; ix < (T+T_test) ; ++ix){
     for(jx = 0 ; jx < Ndat ; ++jx){
-      // I need to find a more sophisticated way to skip the initial file data
       if(ix < T){
 	fileIn >> a_test[0];
       } else {
-	fileIn >> a_test[(ix-T)*N + jx];
+	if(jx < N){
+	  fileIn >> a_test[(ix-T)*N + jx];
+	} else {
+	  fileIn >> trash;
+	}
       }
     }
   }
