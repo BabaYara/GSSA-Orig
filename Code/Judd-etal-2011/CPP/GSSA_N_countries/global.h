@@ -1,6 +1,8 @@
 #ifndef __FILE_GLOBAL_H_SEEN__
 #define __FILE_GLOBAL_H_SEEN__
 
+#include <Accelerate/Accelerate.h>
+
 typedef double REAL;
 typedef unsigned long int Ullong;
 typedef unsigned int Uint;

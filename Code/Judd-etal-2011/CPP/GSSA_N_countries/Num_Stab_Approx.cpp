@@ -34,7 +34,6 @@
 #include "simplx.h"
 #include <math.h>
 #include <typeinfo>
-#include <gsl/gsl_cblas.h>
 #include <iostream>
 #include <iomanip>
 

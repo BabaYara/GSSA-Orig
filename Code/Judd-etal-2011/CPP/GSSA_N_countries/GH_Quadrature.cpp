@@ -25,7 +25,6 @@
 #include "global.h"
 #include <math.h>
 #include <typeinfo>
-#include <gsl/gsl_cblas.h>
 #include <iostream>
 
 using namespace std;

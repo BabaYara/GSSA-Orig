@@ -62,7 +62,6 @@
 #include <fstream>
 #include <ctime>
 #include <typeinfo>
-#include <gsl/gsl_cblas.h>
 
 using namespace std;
 
