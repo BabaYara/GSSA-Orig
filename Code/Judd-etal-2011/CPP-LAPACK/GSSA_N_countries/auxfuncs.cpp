@@ -1,0 +1,75 @@
+#include "global.h"
+#include <math.h>
+#include <iostream>
+#include <iomanip>
+
+using namespace std;
+
+REAL mean(REAL* x, const int N)
+{
+  int ix;
+  REAL mean = 0.0;
+  for(ix = 0 ; ix < N ; ++ix) mean += x[ix]/N;
+  return mean;
+}
+
+REAL var(REAL* x, const int N)
+{
+  int ix;
+  const REAL x_bar = mean(x,N);
+  REAL var = 0.0;
+  for(ix = 0 ; ix < N ; ++ix) var += pow(x[ix]-x_bar,2)/(N-1);
+  return var;
+}
+
+REAL sd(REAL* x, const int N)
+{
+  return sqrt(var(x,N));
+}
+
+REAL norm(REAL* x, const int N)
+{
+  int ix;
+  REAL norm = 0.0;
+  for(ix = 0 ; ix < N ; ++ix) norm += fabs(x[ix]);
+  return norm;
+}
+
+void matrix_normalize(const int M, const int N, REAL* X, REAL* X_norm,
+		      REAL* X_means, REAL* X_sds)
+{
+
+  // M-by-N matrix stored in flat array, row-major format
+  // normalize value with column mean and standard deviation
+  int ix, jx;
+  REAL col_temp[M]; // temporary storage for each column
+  for(jx = 0 ; jx < N ; ++jx){
+    for(ix = 0 ; ix < M ; ++ix) col_temp[ix] = X[ix*N + jx];
+    X_means[jx] = mean(col_temp, M);
+    X_sds[jx] = sd(col_temp, M);
+    for(ix = 0 ; ix < M ; ++ix){
+      X_norm[ix*N + jx] = (X[ix*N + jx] - X_means[jx])/X_sds[jx];
+    }
+  }
+}
+
+
+void print_matrix(const int M, const int N, REAL* X)
+{
+  cout.precision(5);
+  for(int ix = 0 ; ix < M ; ++ix){
+    for(int jx = 0 ; jx < N ; ++jx){
+      cout << setw(10) << X[ix*N+jx] << " ";
+    }
+    cout << endl;
+  }
+  cout << endl;
+}
+
+void print_vector(const int N, REAL* X)
+{
+  cout.precision(5);
+  for(int ix = 0 ; ix < N ; ++ix){
+    cout << X[ix] << endl;
+  }
+}
