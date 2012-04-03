@@ -187,7 +187,7 @@ void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
     for(jx = 0 ; jx < pow(Qn, N-ix-1) ; ++jx){
       for(kx = 0 ; kx < Qn ; ++kx){
 	for(lx = 0 ; lx < pow(Qn, ix) ; ++lx){
-	  z1[(jx*Qn*(int)pow(Qn,ix) + kx*(int)pow(Qn,ix) + lx)*N + ix] = eps[kx];
+	  z1[jx*Qn*(int)pow(Qn,ix) + kx*(int)pow(Qn,ix) + lx + ix*n_nodes] = eps[kx];
 	  w1[jx*Qn*(int)pow(Qn,ix) + kx*(int)pow(Qn,ix) + lx] *= weight[kx];
 	}
       }
@@ -202,7 +202,7 @@ void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
 
       // Integration nodes; n_nodes-by-N; for example, for N = 2 and
       // Qn=2, z = [1 1; -1 1; 1 -1; -1 -1]
-      z[ix*N + jx] = z1[ix*N + jx]*sqrt(2);
+      z[ix + jx*n_nodes] = z1[ix + jx*n_nodes]*sqrt(2);
 
     }
 
@@ -218,23 +218,30 @@ void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   //    matrix, vcv
   //==========================================================================
 
-  // compute the cholesky decomp of variance-covariance matrix with GSL
-  REAL* vcv_chol = new REAL[N*N];
-  cholesky(vcv, N, vcv_chol);
-  
+  // compute the cholesky decomp of variance-covariance matrix
+  int info;
+  dpotrf("U", &N, vcv, &N, &info);
+  for(ix = 1 ; ix < N ; ++ix){
+    for(jx = 0 ; jx < ix ; ++jx){
+      vcv[ix + jx*N] = 0.0;
+    }
+  }
+
   // Integration nodes; see condition (B.6) in the Supplement
   // to JMM (2011); n_nodes-by-N
   if(typeid(realtype) == typeid(singletype)){
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n_nodes, N, N, 1.0,
-		(float*)z, N, (float*)vcv_chol, N, 0.0,
-		(float*)epsi_nodes, N);
+    float f_alpha = 1.0;
+    float f_beta = 0.0;
+    sgemm("N", "N", &n_nodes, &N, &N, &f_alpha, (float*)z, &n_nodes,
+	  (float*)vcv, &N, &f_beta, (float*)epsi_nodes, &n_nodes);
   } else if(typeid(realtype) == typeid(doubletype)){
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n_nodes, N, N, 1.0,
-		(double*)z, N, (double*)vcv_chol, N, 0.0,
-		(double*)epsi_nodes, N);
+    double d_alpha = 1.0;
+    double d_beta = 0.0;
+    dgemm("N", "N", &n_nodes, &N, &N, &d_alpha, (double*)z, &n_nodes,
+	  (double*)vcv, &N, &d_beta, (double*)epsi_nodes, &n_nodes);
   }
 
   // delete arrays
-  delete[] z1, w1, vcv_chol;
+  delete[] z1, w1;
 
 }

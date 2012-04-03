@@ -1,7 +1,10 @@
+# common
+SDIR     = .
+
 # Eric's Machine
 #CPP = g++
 #LDFLAGS   = -lm -framework Accelerate
-#CPPFLAGS = -O2 -c
+#CPPFLAGS = -O2 -c -I$(SDIR)
 
 # Keeneland with the following modules:
 # Currently Loaded Modulefiles:
@@ -13,7 +16,7 @@ CPP    = icpc
 MKL_INC_PATH=/opt/intel/composer_xe_2011_sp1.8.273/mkl/include
 MKL_LIB_PATH=/opt/intel/composer_xe_2011_sp1.8.273/mkl/lib/intel64
 LDFLAGS   = -L$(MKL_LIB_PATH) -lm -lpthread -openmp -Wl,--start-group -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5 -Wl,--end-group
-CPPFLAGS = -O2 -c -I$(MKL_INC_PATH)
+CPPFLAGS = -O2 -c -I$(MKL_INC_PATH) -I$(SDIR)
 
 OBJECTS  = Productivity.o GH_Quadrature.o Monomials_1.o Monomials_2.o Ord_Polynomial_N.o Num_Stab_Approx.o Accuracy_Test_N.o cholesky.o auxfuncs.o svdcmp.o qrdcmp.o simplx.o
 

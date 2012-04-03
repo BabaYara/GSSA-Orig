@@ -35,7 +35,8 @@ REAL sd(REAL* x, const int N);
 REAL norm(REAL* x, const int N);
 void matrix_normalize(const int M, const int N, REAL* X, REAL* X_norm,
 		      REAL* X_means, REAL* X_sds);
-void print_matrix(const int M, const int N, REAL* X);
+void print_matrix(const int M, const int N, REAL* X,
+		  const int printrows, const int printcols);
 void print_vector(const int N, REAL* X);
 
 #endif

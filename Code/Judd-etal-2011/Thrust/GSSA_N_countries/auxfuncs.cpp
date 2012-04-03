@@ -54,11 +54,12 @@ void matrix_normalize(const int M, const int N, REAL* X, REAL* X_norm,
 }
 
 
-void print_matrix(const int M, const int N, REAL* X)
+void print_matrix(const int M, const int N, REAL* X,
+		  const int printrows, const int printcols)
 {
   cout.precision(5);
-  for(int ix = 0 ; ix < M ; ++ix){
-    for(int jx = 0 ; jx < N ; ++jx){
+  for(int ix = 0 ; ix < printrows ; ++ix){
+    for(int jx = 0 ; jx < printcols ; ++jx){
       cout << setw(10) << X[ix*N+jx] << " ";
     }
     cout << endl;

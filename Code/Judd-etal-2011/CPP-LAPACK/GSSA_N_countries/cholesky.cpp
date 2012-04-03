@@ -9,16 +9,16 @@ void cholesky(REAL* A, int N, REAL* A_chol)
 
     // fill the upper part with zeros
     for(jx = (ix+1) ; jx < N ; ++jx){
-      A_chol[ix*N + jx] = 0.0;
+      A_chol[ix + jx*N] = 0.0;
     }
 
     // compute the lower part
     for(jx = ix ; jx < N ; ++jx){
-      sum = A[ix*N + jx];
-      for (kx = ix-1 ; kx >= 0 ; --kx) sum -= A_chol[ix*N + kx]*A_chol[jx*N + kx];
+      sum = A[ix + jx*N];
+      for (kx = ix-1 ; kx >= 0 ; --kx) sum -= A_chol[ix + kx*N]*A_chol[jx + kx*N];
       if (ix == jx) {
-	A_chol[ix*N + ix] = sqrt(sum);
-      } else A_chol[jx*N + ix] = sum/A_chol[ix*N + ix];
+	A_chol[ix + ix*N] = sqrt(sum);
+      } else A_chol[jx + ix*N] = sum/A_chol[ix + ix*N];
     }
 
   }

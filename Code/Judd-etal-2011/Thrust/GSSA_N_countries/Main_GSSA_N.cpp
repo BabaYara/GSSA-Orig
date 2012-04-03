@@ -303,6 +303,12 @@ int main()
 	  cblas_dgemv(CblasRowMajor, CblasTrans, 1+2*N, N, 1.0, (double*)bk_1d,
 		      N, (double*)x+ix*(1+2*N), 1, 0.0, (double*)k+(ix+1)*N, 1);
 	}
+	REAL alph = 1.0;
+	REAL bet = 0.0;
+	int nrows = 1+2*N;
+	int inc = 1;
+	char trans = 'T';
+	dgemv(&trans, &nrows, &N, &alph, bk_1d, &nrows, x+ix, &inc, &bet, k+(ix+1), &inc);
       }
     }
 

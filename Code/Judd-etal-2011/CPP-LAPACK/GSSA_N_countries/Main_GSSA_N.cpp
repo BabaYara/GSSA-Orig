@@ -181,7 +181,7 @@ int main()
     for(ix = 0 ; ix < T ; ++ix){
       for(jx = 0 ; jx < Ndat ; ++jx){
 	if(jx < N){
-	  fileIn >> a[ix + jx+T];
+	  fileIn >> a[ix + jx*T];
 	} else {
 	  fileIn >> trash;
 	}
@@ -217,15 +217,16 @@ int main()
   // 7. Initialize the first-degree capital policy functions of N countries 
   //==========================================================================
 
-  REAL* bk_1d = new REAL[(1+2*N)*N];
-  for(ix = 0 ; ix < (1+2*N) ; ++ix){
+  int nStates = 1+2*N;
+  REAL* bk_1d = new REAL[nStates*N];
+  for(ix = 0 ; ix < nStates ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
       if(ix == (jx+1)){
-	bk_1d[ix + jx*(1+2*N)] = 0.9;
+	bk_1d[ix + jx*nStates] = 0.9;
       } else if(ix == (jx+1+N)){
-	bk_1d[ix + jx*(1+2*N)] = 0.1;
+	bk_1d[ix + jx*nStates] = 0.1;
       } else {
-	bk_1d[ix + jx*(1+2*N)] = 0;
+	bk_1d[ix + jx*nStates] = 0;
       }
     }
   }
@@ -261,7 +262,7 @@ int main()
 
   // auxiliary variables and storage
   REAL* k_temp;                    // damping parameter
-  REAL* x = new REAL[T*(1+2*N)];   // storage for basis functions
+  REAL* x = new REAL[T*nStates];   // storage for basis functions
   REAL* C = new REAL[T];           // storage for aggregate consumption
   REAL* c = new REAL[T*N];         // storage for individual consumption
   REAL* Y = new REAL[(T-1)*N];     // storage for income
@@ -269,10 +270,19 @@ int main()
   
   // storage for linear regression variables (including SVD variables)
   int count = 0;
-  REAL wkopt;
+  float f_wkopt;
+  double d_wkopt;
   REAL* work = NULL;
   int info;
-  int lwork = -1;
+  int lwork;
+
+  // auxiliary variables for BLAS and LAPACK calls
+  double d_alpha = 1.0;
+  float f_alpha = 1.0;
+  double d_beta = 0.0;
+  float f_beta = 0.0;
+  int inc_x = 1, inc_k = 1;
+  int Tminus1 = T-1;
 
   // loop
   while(dif_1d > 1e-4*kdamp){
@@ -280,33 +290,28 @@ int main()
     //========================================================================
     // 9.1 Generate time series of capital
     //========================================================================
-
     for(ix = 0 ; ix < T ; ++ix){
-      for(jx = 0 ; jx < (1+2*N) ; ++jx){
+      for(jx = 0 ; jx < nStates ; ++jx){
 
 	// The basis functions of the first-degree polynomial at time t
 	if(jx == 0){
 	  x[ix + jx*T] = 1.0;
 	} else if((jx >= 1) & (jx <= N)){
-	  x[ix + jx*T] = k[ix + (jx-1)*T];
+	  x[ix + jx*T] = k[ix + (jx-1)*(T+1)];
 	} else {
 	  x[ix + jx*T] = a[ix + (jx-N-1)*T];
 	}
+      }
 
-	// Compute next-period capital using bk_1d
-	REAL alph = 1.0;
-	REAL bet = 0.0;
-	int nrows = 1+2*N;
-	int inc = 1;
-	char trans = 'T';
-	//if(typeid(realtype) == typeid(singletype)){
-	  //SGEMV("T", &nrows, &N, &(float)alph, (float*)bk_1d, &nrows, (float*)x+ix, &inc,
-	  //	&(float)bet, (float*)k+(ix+1), &inc);
-	//} else if(typeid(realtype) == typeid(doubletype)){
-	  //dgemv("T", &(1+2*N), &N, &1.0, (double*)bk_1d, &(1+2*N), (double*)x+ix, &1,
-	  //	&0.0, (double*)k+(ix+1), &1);
-	  dgemv(&trans, &nrows, &N, &alph, bk_1d, &nrows, x+ix, &inc, &bet, k+(ix+1), &inc);
-	  //}
+      // Compute next-period capital using bk_1d
+      inc_x = T;
+      inc_k = T+1;
+      if(typeid(realtype) == typeid(singletype)){
+	sgemv("T", &nStates, &N, &f_alpha, (float*)bk_1d, &nStates,
+	      (float*)x+ix, &inc_x, &f_beta, (float*)k+(ix+1), &inc_k);
+      } else if(typeid(realtype) == typeid(doubletype)){
+	dgemv("T", &nStates, &N, &d_alpha, (double*)bk_1d, &nStates,
+	      (double*)x+ix, &inc_x, &d_beta, (double*)k+(ix+1), &inc_k);
       }
     }
 
@@ -317,7 +322,7 @@ int main()
     for(ix = 0 ; ix < T ; ++ix){
       C[ix] = 0.0;
       for(jx = 0 ; jx < N ; ++jx){
-	C[ix] += A*pow(k[ix+jx*T], alpha)*a[ix+jx*T] - k[(ix+1)+jx*T] + k[ix+jx*T]*(1-delta);
+	C[ix] += A*pow(k[ix+jx*(T+1)], alpha)*a[ix+jx*T] - k[(ix+1)+jx*(T+1)] + k[ix+jx*(T+1)]*(1-delta);
       }
     }
 
@@ -353,35 +358,35 @@ int main()
 
     for(ix = 0 ; ix < (T-1) ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	Y[ix+jx*(T-1)] = beta*pow(c[(ix+1)+jx*(T-1)]/c[ix+jx*(T-1)], -gam)*(1-delta+A*alpha*pow(k[(ix+1)+jx*(T-1)], alpha-1)*a[(ix+1)+jx*(T-1)])*k[(ix+1)+jx*(T-1)];
+	Y[ix+jx*(T-1)] = beta*pow(c[(ix+1)+jx*T]/c[ix+jx*T], -gam)*(1-delta+A*alpha*pow(k[(ix+1)+jx*(T+1)], alpha-1)*a[(ix+1)+jx*T])*k[(ix+1)+jx*(T+1)];
       }
     }
 
     //========================================================================
     // 9.5 Compute and update the coefficients of the capital policy functions
     //========================================================================
-
     // Compute new coefficients of capital policy functions using OLS (QR).
+    lwork = -1;
     if(typeid(realtype) == typeid(singletype)){
-      sgels('N', &(T-1), &(1+2*N), &N, (float*)x, &(T-1), (float*)Y, &(T-1), &wkopt, &lwork, &info);
+      sgels("N", &Tminus1, &nStates, &N, (float*)x, &T, (float*)Y, &Tminus1, &f_wkopt, &lwork, &info);
+      lwork = (int)f_wkopt;
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgels('N', &(T-1), &(1+2*N), &N, (double*)x, &(T-1), (double*)Y, &(T-1), &wkopt, &lwork, &info);
+      dgels("N", &Tminus1, &nStates, &N, (double*)x, &T, (double*)Y, &Tminus1, &d_wkopt, &lwork, &info);
+      lwork = (int)d_wkopt;
     }
-    lwork = (int)wkopt;
     work = (REAL*)realloc(work, lwork*sizeof(REAL));
     if(typeid(realtype) == typeid(singletype)){
-      sgels('N', &(T-1), &(1+2*N), &N, (float*)x, &(T-1), (float*)Y, &(T-1), work, &lwork, &info);
+      sgels("N", &Tminus1, &nStates, &N, (float*)x, &T, (float*)Y, &Tminus1, (float*)work, &lwork, &info);
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgels('N', &(T-1), &(1+2*N), &N, (double*)x, &(T-1), (double*)Y, &(T-1), work, &lwork, &info);
+      dgels("N", &Tminus1, &nStates, &N, (double*)x, &T, (double*)Y, &Tminus1, (double*)work, &lwork, &info);
     }
 
     // Update the coefficients of the capital policy functions using damping 
-    for(ix = 0 ; ix < (1+2*N) ; ++ix){
+    for(ix = 0 ; ix < nStates ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	bk_1d[ix+jx*(1+2*N)] = kdamp*Y[ix+jx*(1+2*N)] + (1-kdamp)*bk_1d[ix+jx*(1+2*N)];
+	bk_1d[ix+jx*nStates] = kdamp*Y[ix+jx*(T-1)] + (1-kdamp)*bk_1d[ix+jx*nStates];
       }
     }
-
                                      
     //========================================================================
     // 9.6 Store the capital series 
@@ -403,7 +408,6 @@ int main()
   clock_t toc = clock();
   REAL time_GSSA_1d = (toc - tic)/(REAL)CLOCKS_PER_SEC; 
   cout << time_GSSA_1d << endl;
-
 
   //==========================================================================
   // Compute polynomial solutions of the degrees from one to D_max using one 
@@ -454,7 +458,7 @@ int main()
   for(ix = 0 ; ix < npol[D_max-1] ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
       for(kx = 0 ; kx < D_max ; ++kx){
-	BK[ix*N*D_max + jx*D_max + kx] = 0.0;
+	BK[ix + jx*npol[D_max-1] + kx*npol[D_max-1]*N] = 0.0;
       }
     }
   }
@@ -533,12 +537,12 @@ int main()
   REAL X1[T*2*N], X1_integral[T*2*N];
   for(ix = 0 ; ix < T ; ++ix){
     for(jx = N ; jx < 2*N ; ++jx){
-      X1[ix*2*N + jx] = a[ix*N + jx - N];
+      X1[ix + jx*T] = a[ix + (jx-N)*T];
     }
   }
 
-  for(D = 1 ; D <= D_max ; ++D){
-
+  //for(D = 1 ; D <= D_max ; ++D){
+  D=1;
     //========================================================================
     // 15.1 Using the previously computed capital series, compute the initial 
     // guess on the coefficients under the  selected approximation method
@@ -547,15 +551,16 @@ int main()
     // Complete the underlying data matrix, filling with most recent capital
     for(ix = 0 ; ix < T ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	X1[ix*2*N + jx] = k[ix*N + jx];
+	X1[ix + jx*T] = k[ix + jx*(T+1)];
       }
     }
 
     // Construct the polynomial bases on the series of state variables from the
     // previously computed time-series solution
-    // eliminate the first column of X
+    // eliminate the first column of X    
     poly_X = Ord_Polynomial_N(X1, T, 2*N, D, n_cols);
-   
+
+    /*   
     // Compute the initial guess on the coefficients  using the chosen
     // regression method
     bk_D = Num_Stab_Approx(T-1, n_cols, poly_X, N, Y, RM, penalty, normalize);
@@ -946,5 +951,5 @@ int main()
   cout << endl;
 
   //save Results_N time_GSSA time_test Errors_mean Errors_max kdamp RM IM N T BK k_test a_test IM_test alpha gam delta beta A tau rho vcv discard npol D_max T_test ;
-
+  */
 }
