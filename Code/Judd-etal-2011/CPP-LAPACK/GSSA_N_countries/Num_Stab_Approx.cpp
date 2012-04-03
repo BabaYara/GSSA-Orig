@@ -52,7 +52,7 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
   // 2. Normalize the data
   //==========================================================================
 
-  REAL* X1 = new REAL[T*n]; // if data is normalized, this will have T extra units memory
+  REAL* X1 = new REAL[(T+1)*n]; // if data is normalized, this will have T extra units memory
   REAL* Y1 = new REAL[T*N];
   REAL* B1 = new REAL[n*N];
   int n1;
@@ -70,18 +70,18 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     n1 = n-1;
 
     // eliminate the first column of X
-    REAL X_nocol[T*n1];
-    for(ix = 0 ; ix < T ; ++ix){
+    REAL X_nocol[(T+1)*n1];
+    for(ix = 0 ; ix < (T+1) ; ++ix){
       for(jx = 0 ; jx < n1 ; ++jx){
-	X_nocol[ix*n1 + jx] = X[ix*n + jx + 1];
+	X_nocol[ix + jx*(T+1)] = X[ix + (jx+1)*(T+1)];
       }
     }
 
     // Center and scale X1
-    matrix_normalize(T, n1, X_nocol, X1, X_means, X_sds);
+    matrix_normalize(T, n1, X_nocol, T+1, X1, X_means, X_sds);
 
     // Center and scale Y
-    matrix_normalize(T, N, Y, Y1, Y_means, Y_sds);
+    matrix_normalize(T, N, Y, T, Y1, Y_means, Y_sds);
 
   } else {
 
@@ -105,55 +105,33 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     // If the regression method is OLS, ...
 
     // storage for linear regression variables
-    REAL XX[n1*n1];
-    REAL XY[n1*N];
-    REAL D[n1];
-    REAL C[n1];
-    REAL eye[n1*n1];
-    bool sing;
-
+    int Tplus1 = T+1;
+    float f_wkopt;
+    double d_wkopt;
+    REAL* work = NULL;
+    int info;
+    int lwork;
+    
     // Compute B using the formula of the OLS estimator; note that
-    // all the regressions, j=1,...,N, are ran at once
-    // First compute X'X and X'Y.
+    // all the regressions, j=1,...,N, are run at once
+    lwork = -1;
     if(typeid(realtype) == typeid(singletype)){
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, n1, T,
-		  1.0, (float*)X1, n1, (float*)X1, n1, 0.0, (float*)XX,
-		  n1);
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, N, T,
-		  1.0, (float*)X1, n1, (float*)Y1, N, 0.0, (float*)XY, N);
+      sgels("N", &T, &n1, &N, (float*)X1, &Tplus1, (float*)Y1, &T, &f_wkopt, &lwork, &info);
+      lwork = (int)f_wkopt;
     } else if(typeid(realtype) == typeid(doubletype)){
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, n1, T,
-		  1.0, (double*)X1, n1, (double*)X1, n1, 0.0, (double*)XX,
-		  n1);
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, N, T,
-		  1.0, (double*)X1, n1, (double*)Y1, N, 0.0, (double*)XY, N);
+      dgels("N", &T, &n1, &N, (double*)X1, &Tplus1, (double*)Y1, &T, &d_wkopt, &lwork, &info);
+      lwork = (int)d_wkopt;
     }
-
-    // QR decomposition of X'X
-    qrdcmp(XX, n1, C, D, sing);
-
-    // identity matrix, used for matrix inverse
+    work = (REAL*)realloc(work, lwork*sizeof(REAL));
+    if(typeid(realtype) == typeid(singletype)){
+      sgels("N", &T, &n1, &N, (float*)X1, &Tplus1, (float*)Y1, &T, (float*)work, &lwork, &info);
+    } else if(typeid(realtype) == typeid(doubletype)){
+      dgels("N", &T, &n1, &N, (double*)X1, &Tplus1, (double*)Y1, &T, (double*)work, &lwork, &info);
+    }
     for(ix = 0 ; ix < n1 ; ++ix){
-      for(jx = 0 ; jx < n1 ; ++jx){
-	if(ix == jx){
-	  eye[ix*n1+jx] = 1.0;
-	} else {
-	  eye[ix*n1+jx] = 0.0;
-	}
+      for(jx = 0 ; jx < N ; ++jx){
+	B1[ix+jx*n1] = Y1[ix+jx*T];
       }
-    }
-
-    // Compute inverse of X'X
-    qrsolv(XX, n1, C, D, eye, n1); // eye is now the inverse of XX
-
-    // Compute new coefficients of capital policy functions using OLS
-    if(typeid(realtype) == typeid(singletype)){
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n1, N, n1,
-		  1.0, (float*)eye, n1, (float*)XY, N, 0.0, (float*)B1, N);
-    } else if(typeid(realtype) == typeid(doubletype)){
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n1, N, n1,
-		  1.0, (double*)eye, n1, (double*)XY, N, 0.0,
-		  (double*)B1, N);
     }
 
   }
@@ -164,10 +142,39 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
   else if(RM == 2){
 
     // If the regression method is LS-SVD, ...
-    REAL W[n1];
-    REAL V[n1*n1];
-    svdcmp(X1, T, n1, W, V);
-    svbksb(X1, T, n1, W, V, Y1, B1, N);
+
+    // storage for linear regression variables
+    REAL S[n];
+    float f_rcond = -1.0;
+    double d_rcond = -1.0;
+    int rank;
+    float f_wkopt;
+    double d_wkopt;
+    REAL* work = NULL;
+    int info;
+    int lwork;
+    
+    // Compute B using the formula of the OLS estimator; note that
+    // all the regressions, j=1,...,N, are run at once
+    lwork = -1;
+    if(typeid(realtype) == typeid(singletype)){
+      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, &f_wkopt, &lwork, &info);
+      lwork = (int)f_wkopt;
+    } else if(typeid(realtype) == typeid(doubletype)){
+      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, &d_wkopt, &lwork, &info);
+      lwork = (int)d_wkopt;
+    }
+    work = (REAL*)realloc(work, lwork*sizeof(REAL));
+    if(typeid(realtype) == typeid(singletype)){
+      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, (float*)work, &lwork, &info);
+    } else if(typeid(realtype) == typeid(doubletype)){
+      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, (double*)work, &lwork, &info);
+    }
+    for(ix = 0 ; ix < n1 ; ++ix){
+      for(jx = 0 ; jx < N ; ++jx){
+	B1[ix+jx*n1] = Y1[ix+jx*T];
+      }
+    }
 
   }
   // For each regression j, RM 3, 4, 7, 8, we  solve a linear programming 
@@ -185,7 +192,7 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
   //==========================================================================
   // 3.3 LAD-PP
   //==========================================================================
-  
+  /*  
   else if (RM == 3) {          // If the regression method is LAD-PP, ...
     // We solve the linear programming problem (27)-(29) in JMM (2011). 
     // xlp=[B(:,j); ups_plus; ups_minus] where B(:,j) is the vector of coeffi-
@@ -254,7 +261,7 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     }
   }
 
-  /*
+  
  // 3.4 LAD-DP
  //-----------
  elseif RM == 4;          // If the regression method is LAD-DP, ...
@@ -292,59 +299,41 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     // storage for linear regression variables
     REAL XX[n1*n1];
     REAL XY[n1*N];
-    REAL D[n1];
-    REAL C[n1];
-    REAL eye[n1*n1];
-    bool sing;
 
 
     // Use the formula (22) in JMM (2011) where the regularization parameter
     // is T/n1*10^-penalty
     // First compute X'X and X'Y.
     if(typeid(realtype) == typeid(singletype)){
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, n1, T,
-		  1.0, (float*)X1, n1, (float*)X1, n1, 0.0, (float*)XX,
-		  n1);
-      cblas_sgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, N, T,
-		  1.0, (float*)X1, n1, (float*)Y1, N, 0.0, (float*)XY, N);
+      float f_alpha = 1.0;
+      float f_beta = 0.0;
+      sgemm("T", "N", &n1, &n1, &T, &f_alpha, (float*)X1, &T, (float*)X1, &n1, &f_beta, (float*)XX, &n1);
+      sgemm("T", "N", &n1, &N, &T, &f_alpha, (float*)X1, &T, (float*)Y1, &N, &f_beta, (float*)XY, &N);
     } else if(typeid(realtype) == typeid(doubletype)){
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, n1, T,
-		  1.0, (double*)X1, n1, (double*)X1, n1, 0.0, (double*)XX,
-		  n1);
-      cblas_dgemm(CblasRowMajor, CblasTrans, CblasNoTrans, n1, N, T,
-		  1.0, (double*)X1, n1, (double*)Y1, N, 0.0, (double*)XY, N);
+      double d_alpha = 1.0;
+      double d_beta = 0.0;
+      dgemm("T", "N", &n1, &n1, &T, &d_alpha, (double*)X1, &T, (double*)X1, &n1, &d_beta, (double*)XX, &n1);
+      dgemm("T", "N", &n1, &N, &T, &d_alpha, (double*)X1, &T, (double*)Y1, &N, &d_beta, (double*)XY, &N);
     }
 
     // Add regularization matrix
     REAL eta = (T/n1)*pow(10, penalty);
     for(ix = 0 ; ix < n1 ; ++ix) XX[ix*n1 + ix] += eta;
 
-    // QR decomposition of X'X
-    qrdcmp(XX, n1, C, D, sing);
-
-    // identity matrix, used for matrix inverse
+    // Solve the system of linear equations
+    int ipiv[n1];
+    int info;
+    if(typeid(realtype) == typeid(singletype)){
+      sgesv(&n1, &N, (float*)XX, &n1, ipiv, (float*)XY, &n1, &info);
+    } else if(typeid(realtype) == typeid(doubletype)){
+      dgesv(&n1, &N, (double*)XX, &n1, ipiv, (double*)XY, &n1, &info);
+    }
     for(ix = 0 ; ix < n1 ; ++ix){
-      for(jx = 0 ; jx < n1 ; ++jx){
-	if(ix == jx){
-	  eye[ix*n1+jx] = 1.0;
-	} else {
-	  eye[ix*n1+jx] = 0.0;
-	}
+      for(jx = 0 ; jx < N ; ++jx){
+	B1[ix+jx*n1] = XY[ix+jx*n1];
       }
     }
 
-    // Compute inverse of X'X
-    qrsolv(XX, n1, C, D, eye, n1); // eye is now the inverse of XX
-
-    // Compute new coefficients of capital policy functions using OLS
-    if(typeid(realtype) == typeid(singletype)){
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n1, N, n1,
-		  1.0, (float*)eye, n1, (float*)XY, N, 0.0, (float*)B1, N);
-    } else if(typeid(realtype) == typeid(doubletype)){
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n1, N, n1,
-		  1.0, (double*)eye, n1, (double*)XY, N, 0.0,
-		  (double*)B1, N);
-    }
   }
 
   //==========================================================================
@@ -353,27 +342,41 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
 
   else if(RM == 6){
 
-    REAL W[n1];
-    REAL V[n1*n1];
-
     // If the regression method is RLS-TSVD, ...
-    svdcmp(X1, T, n1, W, V);
 
-    // Find max singular value
-    int ind_max;
-    if(typeid(realtype) == typeid(singletype)){
-      ind_max = cblas_isamax(n1, (float*)W, 1);
-    } else if(typeid(realtype) == typeid(doubletype)){
-      ind_max = cblas_idamax(n1, (double*)W, 1);
-    }
+    // storage for linear regression variables
+    REAL S[n1];
+    float f_rcond = 1/pow(10, penalty);
+    double d_rcond = 1/pow(10, penalty);
+    int rank;
+    float f_wkopt;
+    double d_wkopt;
+    REAL* work = NULL;
+    int info;
+    int lwork;
     
-    // Treshhold singular values that are too small
+    // Compute B using the formula of the OLS estimator; note that
+    // all the regressions, j=1,...,N, are run at once
+    lwork = -1;
+    if(typeid(realtype) == typeid(singletype)){
+      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, &f_wkopt, &lwork, &info);
+      lwork = (int)f_wkopt;
+    } else if(typeid(realtype) == typeid(doubletype)){
+      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, &d_wkopt, &lwork, &info);
+      lwork = (int)d_wkopt;
+    }
+    work = (REAL*)realloc(work, lwork*sizeof(REAL));
+    if(typeid(realtype) == typeid(singletype)){
+      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, (float*)work, &lwork, &info);
+    } else if(typeid(realtype) == typeid(doubletype)){
+      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, (double*)work, &lwork, &info);
+    }
     for(ix = 0 ; ix < n1 ; ++ix){
-      if(W[ind_max]/W[ix] > pow(10, penalty)) W[ix] = 0.0;
+      for(jx = 0 ; jx < N ; ++jx){
+	B1[ix+jx*n1] = Y1[ix+jx*T];
+      }
     }
 
-    // Solve for regression coefficients
-    svbksb(X1, T, n1, W, V, Y1, B1, N);
   }
 
   /*
@@ -448,15 +451,16 @@ end
     // Infer all the regression coefficients except the intercept
     for(ix = 1 ; ix < n ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	B[ix*N + jx] = (Y_sds[jx]/X_sds[ix-1])*B1[(ix-1)*N + jx];
+	B[ix + jx*n] = (Y_sds[jx]/X_sds[ix-1])*B1[(ix-1) + jx*n1];
       }
     }
+    print_matrix(n1,N,B1,n1,N);
 
     // Infer the intercept
     for(jx = 0 ; jx < N ; ++jx){
-      B[jx] = Y_means[jx];    
+      B[jx] = Y_means[jx];
       for(ix = 1 ; ix < n ; ++ix){
-	B[jx] -= X_means[ix-1]*B[ix*N+jx];
+	B[jx] -= X_means[ix-1]*B[ix+jx*n];
       }
     }	
   }

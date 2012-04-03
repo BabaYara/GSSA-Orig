@@ -266,6 +266,7 @@ int main()
   REAL* C = new REAL[T];           // storage for aggregate consumption
   REAL* c = new REAL[T*N];         // storage for individual consumption
   REAL* Y = new REAL[(T-1)*N];     // storage for income
+  REAL* Y_copy = new REAL[(T-1)*N];     // storage for income
   REAL a1[T*N], k2[T*N], c1[T*N];  // variables for euler equation errors
   
   // storage for linear regression variables (including SVD variables)
@@ -359,6 +360,7 @@ int main()
     for(ix = 0 ; ix < (T-1) ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
 	Y[ix+jx*(T-1)] = beta*pow(c[(ix+1)+jx*T]/c[ix+jx*T], -gam)*(1-delta+A*alpha*pow(k[(ix+1)+jx*(T+1)], alpha-1)*a[(ix+1)+jx*T])*k[(ix+1)+jx*(T+1)];
+	Y_copy[ix+jx*(T-1)] = Y[ix+jx*(T-1)];
       }
     }
 
@@ -368,26 +370,26 @@ int main()
     // Compute new coefficients of capital policy functions using OLS (QR).
     lwork = -1;
     if(typeid(realtype) == typeid(singletype)){
-      sgels("N", &Tminus1, &nStates, &N, (float*)x, &T, (float*)Y, &Tminus1, &f_wkopt, &lwork, &info);
+      sgels("N", &Tminus1, &nStates, &N, (float*)x, &T, (float*)Y_copy, &Tminus1, &f_wkopt, &lwork, &info);
       lwork = (int)f_wkopt;
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgels("N", &Tminus1, &nStates, &N, (double*)x, &T, (double*)Y, &Tminus1, &d_wkopt, &lwork, &info);
+      dgels("N", &Tminus1, &nStates, &N, (double*)x, &T, (double*)Y_copy, &Tminus1, &d_wkopt, &lwork, &info);
       lwork = (int)d_wkopt;
     }
     work = (REAL*)realloc(work, lwork*sizeof(REAL));
     if(typeid(realtype) == typeid(singletype)){
-      sgels("N", &Tminus1, &nStates, &N, (float*)x, &T, (float*)Y, &Tminus1, (float*)work, &lwork, &info);
+      sgels("N", &Tminus1, &nStates, &N, (float*)x, &T, (float*)Y_copy, &Tminus1, (float*)work, &lwork, &info);
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgels("N", &Tminus1, &nStates, &N, (double*)x, &T, (double*)Y, &Tminus1, (double*)work, &lwork, &info);
+      dgels("N", &Tminus1, &nStates, &N, (double*)x, &T, (double*)Y_copy, &Tminus1, (double*)work, &lwork, &info);
     }
 
     // Update the coefficients of the capital policy functions using damping 
     for(ix = 0 ; ix < nStates ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	bk_1d[ix+jx*nStates] = kdamp*Y[ix+jx*(T-1)] + (1-kdamp)*bk_1d[ix+jx*nStates];
+	bk_1d[ix+jx*nStates] = kdamp*Y_copy[ix+jx*(T-1)] + (1-kdamp)*bk_1d[ix+jx*nStates];
       }
     }
-                                     
+        
     //========================================================================
     // 9.6 Store the capital series 
     //========================================================================
@@ -511,7 +513,7 @@ int main()
   // 14. Choose an regression method 
   //==========================================================================
 
-  int RM = 6;        // Choose a regression method: 
+  int RM = 1;        // Choose a regression method: 
                      // 1=OLS,          2=LS-SVD,   3=LAD-PP,  4=LAD-DP, 
                      // 5=RLS-Tikhonov, 6=RLS-TSVD, 7=RLAD-PP, 8=RLAD-DP
   int normalize = 1; // Option of normalizing the data; 0=unnormalized data; 
@@ -560,9 +562,10 @@ int main()
     // eliminate the first column of X    
     poly_X = Ord_Polynomial_N(X1, T, 2*N, D, n_cols);
 
-    /*   
+
     // Compute the initial guess on the coefficients  using the chosen
     // regression method
+    // Y will be destroyed but will be recomputed before it is needed again
     bk_D = Num_Stab_Approx(T-1, n_cols, poly_X, N, Y, RM, penalty, normalize);
 
     // Initialize the series of next-period capital of N countries; these
@@ -570,7 +573,7 @@ int main()
     // (initially, capital can take any value); (T+1)-by-N
     for(ix = 0 ; ix < (T+1) ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	k_old[ix*N + jx] = 1.0;
+	k_old[ix + jx*(T+1)] = 1.0;
       }
     }
 
@@ -580,7 +583,7 @@ int main()
     //========================================================================
     // 15.2 The main iterative cycle of GSSA
     //========================================================================
-    
+    /*    
     // 10^(-4-D)*kdamp is a convergence parameter, adjusted to the polynomial
     // degree D and the damping parameter kdamp; see the discussion in
     // JMM (2011)
