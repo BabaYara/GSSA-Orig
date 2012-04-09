@@ -29,9 +29,6 @@
 // ---------------------------------------------------------------------------
 
 #include "global.h"
-#include "svdcmp.h"
-#include "qrdcmp.h"
-#include "simplx.h"
 #include <math.h>
 #include <typeinfo>
 #include <iostream>
@@ -52,12 +49,19 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
   // 2. Normalize the data
   //==========================================================================
 
-  REAL* X1 = new REAL[(T+1)*n]; // if data is normalized, this will have T extra units memory
-  REAL* Y1 = new REAL[T*N];
-  REAL* B1 = new REAL[n*N];
+  int Tplus1 = T+1;
   int n1;
-  REAL* X_means = new REAL[n-1];
-  REAL* X_sds = new REAL[n-1];
+  if(normalize == 1){
+    n1 = n-1;
+  } else {
+    n = n;
+  }
+
+  REAL* X1 = new REAL[Tplus1*n1];
+  REAL* Y1 = new REAL[T*N];
+  REAL* B1 = new REAL[n1*N];
+  REAL* X_means = new REAL[n1];
+  REAL* X_sds = new REAL[n1];
   REAL* Y_means = new REAL[N];
   REAL* Y_sds = new REAL[N];
 
@@ -65,15 +69,11 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
 
     // If we use normalized data or consider a regularization method, ...
 
-    // Number of coefficients in a regression with normalized data is reduced
-    // by 1 (no intercept)
-    n1 = n-1;
-
     // eliminate the first column of X
-    REAL X_nocol[(T+1)*n1];
-    for(ix = 0 ; ix < (T+1) ; ++ix){
+    REAL X_nocol[Tplus1*n1];
+    for(ix = 0 ; ix < Tplus1 ; ++ix){
       for(jx = 0 ; jx < n1 ; ++jx){
-	X_nocol[ix + jx*(T+1)] = X[ix + (jx+1)*(T+1)];
+	X_nocol[ix + jx*Tplus1] = X[ix + (jx+1)*Tplus1];
       }
     }
 
@@ -88,7 +88,6 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     // If we use unnormalized data, ...
     X1 = X;    // Leave X without changes
     Y1 = Y;    // Leave Y without changes
-    n1 = n;    // Leave n without changes 
 
   }
 
@@ -105,7 +104,6 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     // If the regression method is OLS, ...
 
     // storage for linear regression variables
-    int Tplus1 = T+1;
     float f_wkopt;
     double d_wkopt;
     REAL* work = NULL;
@@ -158,17 +156,17 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     // all the regressions, j=1,...,N, are run at once
     lwork = -1;
     if(typeid(realtype) == typeid(singletype)){
-      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, &f_wkopt, &lwork, &info);
+      sgelss(&T, &n1, &N, (float*)X1, &Tplus1, (float*)Y1, &T, (float*)S, &f_rcond, &rank, &f_wkopt, &lwork, &info);
       lwork = (int)f_wkopt;
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, &d_wkopt, &lwork, &info);
+      dgelss(&T, &n1, &N, (double*)X1, &Tplus1, (double*)Y1, &T, (double*)S, &d_rcond, &rank, &d_wkopt, &lwork, &info);
       lwork = (int)d_wkopt;
     }
     work = (REAL*)realloc(work, lwork*sizeof(REAL));
     if(typeid(realtype) == typeid(singletype)){
-      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, (float*)work, &lwork, &info);
+      sgelss(&T, &n1, &N, (float*)X1, &Tplus1, (float*)Y1, &T, (float*)S, &f_rcond, &rank, (float*)work, &lwork, &info);
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, (double*)work, &lwork, &info);
+      dgelss(&T, &n1, &N, (double*)X1, &Tplus1, (double*)Y1, &T, (double*)S, &d_rcond, &rank, (double*)work, &lwork, &info);
     }
     for(ix = 0 ; ix < n1 ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
@@ -214,7 +212,7 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     // The first column of the remaining rows will be the constraint values
     // Y[,i], filled in later. The other columns consist of the matrix
     // [X1, -X1, I, -I], where I is the TxT identity matrix
-    for(ix = 1 ; ix < (T+1) ; ++ix){
+    for(ix = 1 ; ix < Tplus1 ; ++ix){
       for(jx = 1 ; jx < (n1+1) ; ++jx) A[ix*nA+jx] = X1[(ix-1)*n1+jx-1];
       for(jx = (n1+1) ; jx < (2*n1+1) ; ++jx) A[ix*nA+jx] = -X1[(ix-1)*n1+jx-1-n1];
       for(jx = (2*n1+1) ; jx < nA ; ++jx){
@@ -237,7 +235,7 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     for(jx = 0 ; jx < N ; ++jx){ // For each regression j, ...
 
       // fill in the first column of the tableau matrix for rows 1 to T
-      for(ix = 1 ; ix < (T+1) ; ++ix){
+      for(ix = 1 ; ix < Tplus1 ; ++ix){
 	A[ix*nA] = Y1[(ix-1)*N+jx];
       }
       
@@ -295,30 +293,28 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
   else if(RM == 5){
 
     // If the regression method is RLS-Tikhonov, ...
-
     // storage for linear regression variables
     REAL XX[n1*n1];
     REAL XY[n1*N];
-
-
+    
     // Use the formula (22) in JMM (2011) where the regularization parameter
     // is T/n1*10^-penalty
     // First compute X'X and X'Y.
     if(typeid(realtype) == typeid(singletype)){
       float f_alpha = 1.0;
       float f_beta = 0.0;
-      sgemm("T", "N", &n1, &n1, &T, &f_alpha, (float*)X1, &T, (float*)X1, &n1, &f_beta, (float*)XX, &n1);
-      sgemm("T", "N", &n1, &N, &T, &f_alpha, (float*)X1, &T, (float*)Y1, &N, &f_beta, (float*)XY, &N);
+      sgemm("T", "N", &n1, &n1, &T, &f_alpha, (float*)X1, &Tplus1, (float*)X1, &Tplus1, &f_beta, (float*)XX, &n1);
+      sgemm("T", "N", &n1, &N, &T, &f_alpha, (float*)X1, &Tplus1, (float*)Y1, &T, &f_beta, (float*)XY, &n1);
     } else if(typeid(realtype) == typeid(doubletype)){
       double d_alpha = 1.0;
       double d_beta = 0.0;
-      dgemm("T", "N", &n1, &n1, &T, &d_alpha, (double*)X1, &T, (double*)X1, &n1, &d_beta, (double*)XX, &n1);
-      dgemm("T", "N", &n1, &N, &T, &d_alpha, (double*)X1, &T, (double*)Y1, &N, &d_beta, (double*)XY, &N);
+      dgemm("T", "N", &n1, &n1, &T, &d_alpha, (double*)X1, &Tplus1, (double*)X1, &Tplus1, &d_beta, (double*)XX, &n1);
+      dgemm("T", "N", &n1, &N, &T, &d_alpha, (double*)X1, &Tplus1, (double*)Y1, &T, &d_beta, (double*)XY, &n1);
     }
 
     // Add regularization matrix
     REAL eta = (T/n1)*pow(10, penalty);
-    for(ix = 0 ; ix < n1 ; ++ix) XX[ix*n1 + ix] += eta;
+    for(ix = 0 ; ix < n1 ; ++ix) XX[ix + ix*n1] += eta;
 
     // Solve the system of linear equations
     int ipiv[n1];
@@ -359,17 +355,17 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     // all the regressions, j=1,...,N, are run at once
     lwork = -1;
     if(typeid(realtype) == typeid(singletype)){
-      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, &f_wkopt, &lwork, &info);
+      sgelss(&T, &n1, &N, (float*)X1, &Tplus1, (float*)Y1, &T, (float*)S, &f_rcond, &rank, &f_wkopt, &lwork, &info);
       lwork = (int)f_wkopt;
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, &d_wkopt, &lwork, &info);
+      dgelss(&T, &n1, &N, (double*)X1, &Tplus1, (double*)Y1, &T, (double*)S, &d_rcond, &rank, &d_wkopt, &lwork, &info);
       lwork = (int)d_wkopt;
     }
     work = (REAL*)realloc(work, lwork*sizeof(REAL));
     if(typeid(realtype) == typeid(singletype)){
-      sgelss(&T, &n1, &N, (float*)X1, &T, (float*)Y1, &T, (float*)S, &f_rcond, &rank, (float*)work, &lwork, &info);
+      sgelss(&T, &n1, &N, (float*)X1, &Tplus1, (float*)Y1, &T, (float*)S, &f_rcond, &rank, (float*)work, &lwork, &info);
     } else if(typeid(realtype) == typeid(doubletype)){
-      dgelss(&T, &n1, &N, (double*)X1, &T, (double*)Y1, &T, (double*)S, &d_rcond, &rank, (double*)work, &lwork, &info);
+      dgelss(&T, &n1, &N, (double*)X1, &Tplus1, (double*)Y1, &T, (double*)S, &d_rcond, &rank, (double*)work, &lwork, &info);
     }
     for(ix = 0 ; ix < n1 ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
@@ -451,19 +447,25 @@ end
     // Infer all the regression coefficients except the intercept
     for(ix = 1 ; ix < n ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	B[ix + jx*n] = (Y_sds[jx]/X_sds[ix-1])*B1[(ix-1) + jx*n1];
+	B[ix + jx*n] = (Y_sds[jx]/X_sds[ix-1])*B1[(ix-1)+jx*n1];
       }
     }
-    print_matrix(n1,N,B1,n1,N);
 
     // Infer the intercept
     for(jx = 0 ; jx < N ; ++jx){
-      B[jx] = Y_means[jx];
+      B[jx*n] = Y_means[jx];
       for(ix = 1 ; ix < n ; ++ix){
-	B[jx] -= X_means[ix-1]*B[ix+jx*n];
+	B[jx*n] -= X_means[ix-1]*B[ix+jx*n];
       }
-    }	
+    }
   }
 
+  free(X1);
+  free(Y1);
+  free(B1);
+  free(X_means);
+  free(X_sds);
+  free(Y_means);
+  //free(Y_sds);
   return B;
 }

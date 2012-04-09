@@ -54,8 +54,6 @@
   ---------------------------------------------------------------------------*/
 
 #include "global.h"
-#include "svdcmp.h"
-#include "qrdcmp.h"
 #include <math.h>
 #include <iostream>
 #include <iomanip>
@@ -284,6 +282,7 @@ int main()
   float f_beta = 0.0;
   int inc_x = 1, inc_k = 1;
   int Tminus1 = T-1;
+  int Tplus1 = T+1;
 
   // loop
   while(dif_1d > 1e-4*kdamp){
@@ -357,10 +356,10 @@ int main()
     // Y, in condition (C4) in the online Appendix C
     //========================================================================
 
-    for(ix = 0 ; ix < (T-1) ; ++ix){
+    for(ix = 0 ; ix < Tminus1 ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	Y[ix+jx*(T-1)] = beta*pow(c[(ix+1)+jx*T]/c[ix+jx*T], -gam)*(1-delta+A*alpha*pow(k[(ix+1)+jx*(T+1)], alpha-1)*a[(ix+1)+jx*T])*k[(ix+1)+jx*(T+1)];
-	Y_copy[ix+jx*(T-1)] = Y[ix+jx*(T-1)];
+	Y[ix+jx*Tminus1] = beta*pow(c[(ix+1)+jx*T]/c[ix+jx*T], -gam)*(1-delta+A*alpha*pow(k[(ix+1)+jx*(T+1)], alpha-1)*a[(ix+1)+jx*T])*k[(ix+1)+jx*(T+1)];
+	Y_copy[ix+jx*Tminus1] = Y[ix+jx*(T-1)];
       }
     }
 
@@ -518,7 +517,7 @@ int main()
                      // 5=RLS-Tikhonov, 6=RLS-TSVD, 7=RLAD-PP, 8=RLAD-DP
   int normalize = 1; // Option of normalizing the data; 0=unnormalized data; 
                      // 1=normalized data                    
-  int penalty = 7;   // Degree of regularization for a regularization methods, 
+  int penalty = -7;   // Degree of regularization for a regularization methods, 
                      // RM=5,6,7,8 (must be negative, e.g., -7 for RM=5,7,8 
                      // and must be positive, e.g., 7, for RM=6)
 
@@ -553,7 +552,7 @@ int main()
     // Complete the underlying data matrix, filling with most recent capital
     for(ix = 0 ; ix < T ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	X1[ix + jx*T] = k[ix + jx*(T+1)];
+	X1[ix + jx*T] = k[ix + jx*Tplus1];
       }
     }
 
@@ -580,14 +579,17 @@ int main()
     // Convergence criterion (initially is not satisfied)
     dif_GSSA_D  = 1e+10;
 
+    
     //========================================================================
     // 15.2 The main iterative cycle of GSSA
     //========================================================================
-    /*    
+       
     // 10^(-4-D)*kdamp is a convergence parameter, adjusted to the polynomial
     // degree D and the damping parameter kdamp; see the discussion in
     // JMM (2011)
     count = 0;
+    REAL* X1_row = new REAL[2*N];
+    REAL* k_row = new REAL[N];
     while(dif_GSSA_D > pow(10,-4-D)*kdamp){
     
       //======================================================================
@@ -599,27 +601,38 @@ int main()
 	// The basis functions of a polynomial of degree D at time t	
 	for(jx = 0 ; jx < 2*N ; ++jx){
 	  if(jx < N){
-	    X1[ix*2*N + jx] = k[ix*N + jx];
+	    X1[ix + jx*T] = k[ix + jx*Tplus1];
 	  } else {
-	    X1[ix*2*N + jx] = a[ix*N + jx - N];
+	    X1[ix + jx*T] = a[ix + (jx-N)*T];
 	  }
 	}
 
 	// Polynomial bases
-	poly_X_row = Ord_Polynomial_N(X1+ix*2*N, 1, 2*N, D, n_cols);
+	for(jx = 0 ; jx < 2*N ; ++jx){
+	  X1_row[jx] = X1[ix+jx*T];
+	}
+	poly_X_row = Ord_Polynomial_N(X1_row, 1, 2*N, D, n_cols);
 	for(jx = 0 ; jx < n_cols ; ++jx){
-	  poly_X[ix*n_cols+jx] = poly_X_row[jx];
+	  poly_X[ix+jx*T] = poly_X_row[jx];
 	}
 
+	REAL test[2];
 	// Compute next-period capital using bk_D	
 	if(typeid(realtype) == typeid(singletype)){
-	  cblas_sgemv(CblasRowMajor, CblasTrans, n_cols, N, 1.0, (float*)bk_D,
-		      N, (float*)poly_X_row, 1, 0.0, (float*)k+(ix+1)*N, 1);
+	  sgemv("T", &n_cols, &N, &f_alpha, (float*)bk_D, &n_cols,
+		(float*)poly_X_row, &inc_x, &f_beta, (float*)k_row, &inc_k);
 	} else if(typeid(realtype) == typeid(doubletype)){
-	  cblas_dgemv(CblasRowMajor, CblasTrans, n_cols, N, 1.0, (double*)bk_D,
-		      N, (double*)poly_X_row, 1, 0.0, (double*)k+(ix+1)*N, 1);
+	  //dgemv("T", &n_cols, &N, &d_alpha, (double*)bk_D, &n_cols,
+	  //(double*)poly_X_row, &inc_x, &d_beta, (double*)test, &inc_k);
+	  dgemm("T", "N", &N, &inc_x, &n_cols, &d_alpha, (double*)bk_D, &n_cols,
+		(double*)poly_X_row, &n_cols, &d_beta, (double*)test, &N);
+	  cout<<"here: " << k[0]<<endl;
 	}
-
+	for(jx = 0 ; jx < N ; ++jx){
+	  k[ix+jx*Tplus1] = k_row[jx];
+	}
+	if(ix==0) print_vector(2,test);
+	if(ix==0) print_matrix(n_cols,N,bk_D,n_cols,N);
       }
 
       //======================================================================
@@ -631,14 +644,14 @@ int main()
       for(ix = 0 ; ix < T ; ++ix){
 	C[ix] = 0.0;
 	for(jx = 0 ; jx < N ; ++jx){
-	  C[ix] += A*pow(k[ix*N+jx], alpha)*a[ix*N+jx] - k[(ix+1)*N+jx] + k[ix*N+jx]*(1-delta);
+	  C[ix] += A*pow(k[ix+jx*Tplus1], alpha)*a[ix+jx*Tplus1] - k[(ix+1)+jx*Tplus1] + k[ix+jx*Tplus1]*(1-delta);
 	}
       }
 
       // Individual consumption is the same for all countries; T-by-N
       for(ix = 0 ; ix < T ; ++ix){
 	for(jx = 0 ; jx < N ; ++jx){
-	  c[ix*N + jx] = C[ix]/N;
+	  c[ix + jx*T] = C[ix]/N;
 	}
       }
       
@@ -655,7 +668,7 @@ int main()
       if(IM == 0){
 	for(ix = 0 ; ix < (T-1) ; ++ix){
 	  for(jx = 0 ; jx < N ; ++jx){
-	    Y[ix*N+jx] = beta*pow(c[(ix+1)*N+jx]/c[ix*N+jx], -gam)*(1-delta+A*alpha*pow(k[(ix+1)*N+jx], alpha-1)*a[(ix+1)*N+jx])*k[(ix+1)*N+jx];
+	    Y[ix+jx*Tminus1] = beta*pow(c[(ix+1)+jx*T]/c[ix+jx*T], -gam)*(1-delta+A*alpha*pow(k[(ix+1)+jx*Tplus1], alpha-1)*a[(ix+1)+jx*T])*k[(ix+1)+jx*Tplus1];
 	  }
 	}
       }
@@ -669,9 +682,9 @@ int main()
       else{
 
 	// Initialize variable Y
-	for(ix = 0 ; ix < T ; ++ix){
+	for(ix = 0 ; ix < Tminus1 ; ++ix){
 	  for(jx = 0 ; jx < N ; ++jx){
-	    Y[ix*N+jx] = 0.0;
+	    Y[ix+jx*Tminus1] = 0.0;
 	  }
 	}
 
@@ -682,27 +695,26 @@ int main()
 
 	      // Compute the next-period productivity levels for each integration       
 	      // node using condition (C3) in the online Appendix C; n_nodes-by-N
-	      a1[ix*N+jx] = pow(a[ix*N+jx],rho)*exp(epsi_nodes[hx*N+jx]);
+	      a1[ix+jx*T] = pow(a[ix+jx*T],rho)*exp(epsi_nodes[hx+jx*n_nodes]);
 
 	      // The basis functions of a polynomial of degree D at time t	
-	      X1_integral[ix*2*N + jx] = k[(ix+1)*N + jx];
-	      X1_integral[ix*2*N + jx + N] = a1[ix*N + jx];
+	      X1_integral[ix + jx*T] = k[(ix+1) + jx*Tplus1];
+	      X1_integral[ix + (jx+N)*T] = a1[ix + jx*T];
 	    }
 	  }
-	  
+	  //	  if(hx==8) print_matrix(T,2*N,X1_integral,10,2*N);
+	  //if(hx==8) print_matrix(T,N,k,10,N);
 	  // Polynomial bases
 	  poly_X_integral = Ord_Polynomial_N(X1_integral, T, 2*N, D, n_cols);
 
 	  // Compute capital of period t+2 (chosen at t+1) using the
 	  // capital policy functions; n_nodes-by-N 
 	  if(typeid(realtype) == typeid(singletype)){
-	    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, T, N, n_cols,
-			1.0, (float*)poly_X_integral, n_cols, (float*)bk_D, N, 0.0,
-			(float*)k2, N);
+	    sgemm("N", "N", &T, &N, &n_cols, &f_alpha, (float*)poly_X_integral,
+		  &T, (float*)bk_D, &n_cols, &f_beta, (float*)k2, &Tplus1);
 	  } else if(typeid(realtype) == typeid(doubletype)){
-	    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, T, N, n_cols,
-			1.0, (double*)poly_X_integral, n_cols, (double*)bk_D, N, 0.0,
-			(double*)k2, N);
+	    dgemm("N", "N", &T, &N, &n_cols, &d_alpha, (double*)poly_X_integral,
+		  &T, (double*)bk_D, &n_cols, &d_beta, (double*)k2, &Tplus1);
 	  }
 
 	  // C is computed by summing up individual consumption, which in
@@ -710,26 +722,26 @@ int main()
 	  for(ix = 0 ; ix < T ; ++ix){
 	    C[ix] = 0.0;
 	    for(jx = 0 ; jx < N ; ++jx){
-	      C[ix] += A*pow(k[(ix+1)*N+jx], alpha)*a1[ix*N+jx] - k2[ix*N+jx] + k[(ix+1)*N+jx]*(1-delta);
+	      C[ix] += A*pow(k[(ix+1)+jx*Tplus1], alpha)*a1[ix+jx*T] - k2[ix+jx*Tplus1] + k[(ix+1)+jx*Tplus1]*(1-delta);
 	    }
 	  }
 
 	  // Compute next-period consumption for N countries; n_nodes-by-N
 	  for(ix = 0 ; ix < T ; ++ix){
 	    for(jx = 0 ; jx < N ; ++jx){
-	      c1[ix*N + jx] = C[ix]/N;
+	      c1[ix + jx*T] = C[ix]/N;
 	    }
 	  }
 
 	  // Sum Euler Equation errors over integration weights
-	  for(ix = 0 ; ix < T ; ++ix){
+	  for(ix = 0 ; ix < Tminus1 ; ++ix){
 	    for(jx = 0 ; jx < N ; ++jx){
-	      Y[ix*N+jx] = Y[ix*N+jx]+weight_nodes[hx]*beta*pow(c1[ix*N+jx]/c[ix*N+jx],-gam)*(1-delta+alpha*A*pow(k[(ix+1)*N+jx],alpha-1)*a1[ix*N+jx])*k[(ix+1)*N+jx];
-	    } // T-by-N
+	      Y[ix+jx*Tminus1] = Y[ix+jx*Tminus1]+weight_nodes[hx]*beta*pow(c1[ix+jx*T]/c[ix+jx*T],-gam)*(1-delta+alpha*A*pow(k[(ix+1)+jx*Tplus1],alpha-1)*a1[ix+jx*T])*k[(ix+1)+jx*Tplus1];
+	    } // (T-1)-by-N
 	  }
 	}
       }
- 
+
       //======================================================================
       // 15.2.4 Evaluate the percentage (unit-free) difference between the 
       // capital series from the previous and current iterations
@@ -738,12 +750,12 @@ int main()
       // Compute a unit-free difference between the capital series from two
       // iterations; see condition (10) in JMM (2011)
       dif_GSSA_D = 0.0;
-      for(ix = 0 ; ix < (T+1) ; ++ix){
+      for(ix = 0 ; ix < Tplus1 ; ++ix){
 	for(jx = 0 ; jx < N ; ++jx){
-	  dif_GSSA_D += fabs(1 - k[ix*N + jx]/k_old[ix*N + jx]);
+	  dif_GSSA_D += fabs(1 - k[ix + jx*Tplus1]/k_old[ix + jx*Tplus1]);
 	}
       }
-      dif_GSSA_D /= (T+1)*N;
+      dif_GSSA_D /= Tplus1*N;
 
       //======================================================================
       // 15.2.5 Compute and update the coefficients of the capital policy 
@@ -752,12 +764,12 @@ int main()
 
       // Compute new coefficients of the capital policy functions using the
       // chosen approximation method
-      bk_hat_D = Num_Stab_Approx(T-1, n_cols, poly_X, N, Y, RM, penalty, normalize);
+      bk_hat_D = Num_Stab_Approx(Tminus1, n_cols, poly_X, N, Y, RM, penalty, normalize);
 
       // Update the coefficients of the capital policy functions using damping 
       for(ix = 0 ; ix < n_cols ; ++ix){
 	for(jx = 0 ; jx < N ; ++jx){
-	  bk_D[ix*N+jx] = kdamp*bk_hat_D[ix*N+jx] + (1-kdamp)*bk_D[ix*N+jx];
+	  bk_D[ix+jx*n_cols] = kdamp*bk_hat_D[ix+jx*n_cols] + (1-kdamp)*bk_D[ix+jx*n_cols];
 	}
       }
 
@@ -784,7 +796,7 @@ int main()
     // capital policy functions of N countries 
     for(ix = 0 ; ix < npol[D-1] ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	BK[ix*N + jx + (D-1)*N*npol[D-1]] = bk_D[ix*N+jx];
+	BK[ix + jx*npol[D-1] + (D-1)*npol[D-1]*N] = bk_D[ix+jx*npol[D-1]];
       }
     }
 
@@ -793,6 +805,22 @@ int main()
     time_GSSA[D-1] = (toc - tic)/(REAL)CLOCKS_PER_SEC; 
     cout << time_GSSA[D-1] << endl;
 
+    free(epsi_nodes);
+    free(weight_nodes);
+    delete[] vcv;
+    delete[] k;
+    delete[] a;
+    delete[] bk_1d;
+    delete[] k_old;
+    delete[] x;
+    delete[] C;
+    delete[] c;
+    delete[] Y;
+    delete[] Y_copy;
+    delete[] npol;
+    delete[] BK;
+
+    /*
   }
 
   //===========================================================================
@@ -955,4 +983,6 @@ int main()
 
   //save Results_N time_GSSA time_test Errors_mean Errors_max kdamp RM IM N T BK k_test a_test IM_test alpha gam delta beta A tau rho vcv discard npol D_max T_test ;
   */
+
+    return 0;
 }

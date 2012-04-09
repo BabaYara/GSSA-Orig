@@ -22,7 +22,6 @@ void Monomials_1(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
 		 REAL* weight_nodes);
 void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
 		 REAL* weight_nodes);
-void cholesky(REAL* A, int N, REAL* A_chol);
 REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
 		      int penalty, int normalize);
 void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,

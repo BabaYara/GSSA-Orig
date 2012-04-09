@@ -220,7 +220,12 @@ void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
 
   // compute the cholesky decomp of variance-covariance matrix
   int info;
-  dpotrf("U", &N, vcv, &N, &info);
+  if(typeid(realtype) == typeid(singletype)){
+    spotrf("U", &N, (float*)vcv, &N, &info);
+  } else if(typeid(realtype) == typeid(doubletype)){
+    dpotrf("U", &N, (double*)vcv, &N, &info);
+  }
+
   for(ix = 1 ; ix < N ; ++ix){
     for(jx = 0 ; jx < ix ; ++jx){
       vcv[ix + jx*N] = 0.0;
