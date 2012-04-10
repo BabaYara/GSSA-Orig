@@ -98,7 +98,8 @@ int main()
   // this vcv follows from the assumption that a country's 
   // shock has both common-for-all-countries and country-
   // specific components; N-by-N, column-major format
-  REAL* vcv = new REAL[N*N];
+  REAL vcv[N*N];
+  REAL vcv_copy[N*N];
   for(jx = 0 ; jx < N ; ++jx){
     for(ix = 0 ; ix < N ; ++ix){
       if(jx == ix){
@@ -106,6 +107,7 @@ int main()
       } else {
 	vcv[ix + jx*N] = pow(sigma,2);
       }
+      vcv_copy[ix + jx*N] = vcv[ix + jx*N];
     }
   }
 
@@ -129,7 +131,7 @@ int main()
 
   // Initial conditions for capital and productivity (equal to steady state)
   REAL* k = new REAL[(T+1)*N];
-  REAL* a = new REAL[T*N];
+  REAL a[T*N];
   for(jx = 0 ; jx < N ; ++jx){
     k[jx*(T+1)] = 1;
     a[jx*T] = 1;
@@ -216,7 +218,7 @@ int main()
   //==========================================================================
 
   int nStates = 1+2*N;
-  REAL* bk_1d = new REAL[nStates*N];
+  REAL bk_1d[nStates*N];
   for(ix = 0 ; ix < nStates ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
       if(ix == (jx+1)){
@@ -260,11 +262,11 @@ int main()
 
   // auxiliary variables and storage
   REAL* k_temp;                    // damping parameter
-  REAL* x = new REAL[T*nStates];   // storage for basis functions
-  REAL* C = new REAL[T];           // storage for aggregate consumption
-  REAL* c = new REAL[T*N];         // storage for individual consumption
-  REAL* Y = new REAL[(T-1)*N];     // storage for income
-  REAL* Y_copy = new REAL[(T-1)*N];     // storage for income
+  REAL x[T*nStates];   // storage for basis functions
+  REAL C[T];           // storage for aggregate consumption
+  REAL c[T*N];         // storage for individual consumption
+  REAL Y[(T-1)*N];     // storage for income
+  REAL Y_copy[(T-1)*N];     // storage for income
   REAL a1[T*N], k2[T*N], c1[T*N];  // variables for euler equation errors
   
   // storage for linear regression variables (including SVD variables)
@@ -272,15 +274,15 @@ int main()
   float f_wkopt;
   double d_wkopt;
   REAL* work = NULL;
-  int info;
-  int lwork;
+  int info = 0;
+  int lwork = -1;
 
   // auxiliary variables for BLAS and LAPACK calls
-  double d_alpha = 1.0;
   float f_alpha = 1.0;
-  double d_beta = 0.0;
+  double d_alpha = 1.0;
   float f_beta = 0.0;
-  int inc_x = 1, inc_k = 1;
+  double d_beta = 0.0;
+  int inc_x = T, inc_k = T+1, inc_row = 1;
   int Tminus1 = T-1;
   int Tplus1 = T+1;
 
@@ -304,8 +306,6 @@ int main()
       }
 
       // Compute next-period capital using bk_1d
-      inc_x = T;
-      inc_k = T+1;
       if(typeid(realtype) == typeid(singletype)){
 	sgemv("T", &nStates, &N, &f_alpha, (float*)bk_1d, &nStates,
 	      (float*)x+ix, &inc_x, &f_beta, (float*)k+(ix+1), &inc_k);
@@ -444,7 +444,7 @@ int main()
   // For the polynomial degrees from one to D_max compute the number of
   // polynomial bases (this is needed for finding the number of the
   // polynomial coefficients in the policy functions)
-  int* npol = new int[D_max];
+  int npol[D_max];
   npol[0] = 1 + 2*N;
   int n_high_order = 2*N;
   for(ix = 1 ; ix < D_max ; ++ix){
@@ -455,7 +455,7 @@ int main()
   // Matrix of polynomial coefficients of the capital policy functions for
   // the polynomial solutions of the degrees from one to D_max;
   // npol[D_max-1]-by-N-by-D_max
-  REAL* BK = new REAL[npol[D_max-1]*N*D_max];
+  REAL BK[npol[D_max-1]*N*D_max];
   for(ix = 0 ; ix < npol[D_max-1] ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
       for(kx = 0 ; kx < D_max ; ++kx){
@@ -484,23 +484,31 @@ int main()
     n_nodes = pow(IM, N);
     epsi_nodes = (REAL*)realloc(epsi_nodes, n_nodes*N*sizeof(REAL));
     weight_nodes = (REAL*)realloc(weight_nodes, n_nodes*sizeof(REAL));
-    GH_Quadrature(IM, N, vcv, n_nodes, epsi_nodes, weight_nodes);
+    GH_Quadrature(IM, N, vcv_copy, n_nodes, epsi_nodes, weight_nodes);
 
   } else if(IM == 11){
     // Monomial integration rule with 2N nodes
     n_nodes = 2*N;
     epsi_nodes = (REAL*)realloc(epsi_nodes, n_nodes*N*sizeof(REAL));
     weight_nodes = (REAL*)realloc(weight_nodes, n_nodes*sizeof(REAL));
-    Monomials_1(N, vcv, n_nodes, epsi_nodes, weight_nodes);
+    Monomials_1(N, vcv_copy, n_nodes, epsi_nodes, weight_nodes);
 
   } else if(IM == 12){
     // Monomial integration rule with 2N^2+1 nodes
     n_nodes = 2*pow(N, 2) + 1;
     epsi_nodes = (REAL*)realloc(epsi_nodes, n_nodes*N*sizeof(REAL));
     weight_nodes = (REAL*)realloc(weight_nodes, n_nodes*sizeof(REAL));
-    Monomials_2(N, vcv, n_nodes, epsi_nodes, weight_nodes);
+    Monomials_2(N, vcv_copy, n_nodes, epsi_nodes, weight_nodes);
 
   }
+
+  // Re-copy vcv
+  for(jx = 0 ; jx < N ; ++jx){
+    for(ix = 0 ; ix < N ; ++ix){
+      vcv_copy[ix + jx*N] = vcv[ix + jx*N];
+    }
+  }
+
 
   // Under the one-node Gauss-Hermite quadrature rule, the conditional 
   // expectation (integral) is approximated by the value of the integrand 
@@ -512,12 +520,12 @@ int main()
   // 14. Choose an regression method 
   //==========================================================================
 
-  int RM = 1;        // Choose a regression method: 
+  int RM = 6;        // Choose a regression method: 
                      // 1=OLS,          2=LS-SVD,   3=LAD-PP,  4=LAD-DP, 
                      // 5=RLS-Tikhonov, 6=RLS-TSVD, 7=RLAD-PP, 8=RLAD-DP
   int normalize = 1; // Option of normalizing the data; 0=unnormalized data; 
                      // 1=normalized data                    
-  int penalty = -7;   // Degree of regularization for a regularization methods, 
+  int penalty = 7;   // Degree of regularization for a regularization methods, 
                      // RM=5,6,7,8 (must be negative, e.g., -7 for RM=5,7,8 
                      // and must be positive, e.g., 7, for RM=6)
 
@@ -527,11 +535,11 @@ int main()
 
   // Admin
   int n_cols, D;
-  REAL* poly_X;
-  REAL* poly_X_integral;
-  REAL* poly_X_row;
-  REAL* bk_D;
-  REAL* bk_hat_D;
+  REAL* poly_X = NULL;
+  REAL* poly_X_integral = NULL;
+  REAL* poly_X_row = NULL;
+  REAL* bk_D = NULL;
+  REAL* bk_hat_D = NULL;
   REAL time_GSSA[D_max];
 
   // Matrix which holds data for polynomial bases - begin with only shocks
@@ -542,12 +550,14 @@ int main()
     }
   }
 
-  //for(D = 1 ; D <= D_max ; ++D){
-  D=1;
+  for(D = 1 ; D <= D_max ; ++D){
+
     //========================================================================
     // 15.1 Using the previously computed capital series, compute the initial 
     // guess on the coefficients under the  selected approximation method
     //========================================================================
+
+    n_cols = npol[D-1];
 
     // Complete the underlying data matrix, filling with most recent capital
     for(ix = 0 ; ix < T ; ++ix){
@@ -559,13 +569,14 @@ int main()
     // Construct the polynomial bases on the series of state variables from the
     // previously computed time-series solution
     // eliminate the first column of X    
-    poly_X = Ord_Polynomial_N(X1, T, 2*N, D, n_cols);
-
+    poly_X = (REAL*)realloc(poly_X, T*n_cols*sizeof(REAL));
+    Ord_Polynomial_N(X1, T, 2*N, D, poly_X);
 
     // Compute the initial guess on the coefficients  using the chosen
     // regression method
     // Y will be destroyed but will be recomputed before it is needed again
-    bk_D = Num_Stab_Approx(T-1, n_cols, poly_X, N, Y, RM, penalty, normalize);
+    bk_D = (REAL*)realloc(bk_D, n_cols*N*sizeof(REAL));
+    Num_Stab_Approx(T-1, n_cols, poly_X, N, Y, RM, penalty, normalize, bk_D);
 
     // Initialize the series of next-period capital of N countries; these
     // series are used to check the convergence on the subsequent iteration
@@ -579,7 +590,6 @@ int main()
     // Convergence criterion (initially is not satisfied)
     dif_GSSA_D  = 1e+10;
 
-    
     //========================================================================
     // 15.2 The main iterative cycle of GSSA
     //========================================================================
@@ -588,8 +598,8 @@ int main()
     // degree D and the damping parameter kdamp; see the discussion in
     // JMM (2011)
     count = 0;
-    REAL* X1_row = new REAL[2*N];
-    REAL* k_row = new REAL[N];
+    REAL X1_row[2*N];
+    REAL k_row[N];
     while(dif_GSSA_D > pow(10,-4-D)*kdamp){
     
       //======================================================================
@@ -611,28 +621,23 @@ int main()
 	for(jx = 0 ; jx < 2*N ; ++jx){
 	  X1_row[jx] = X1[ix+jx*T];
 	}
-	poly_X_row = Ord_Polynomial_N(X1_row, 1, 2*N, D, n_cols);
+	poly_X_row = (REAL*)realloc(poly_X_row, n_cols*sizeof(REAL));
+	Ord_Polynomial_N(X1_row, 1, 2*N, D, poly_X_row);
 	for(jx = 0 ; jx < n_cols ; ++jx){
 	  poly_X[ix+jx*T] = poly_X_row[jx];
 	}
 
-	REAL test[2];
 	// Compute next-period capital using bk_D	
 	if(typeid(realtype) == typeid(singletype)){
 	  sgemv("T", &n_cols, &N, &f_alpha, (float*)bk_D, &n_cols,
-		(float*)poly_X_row, &inc_x, &f_beta, (float*)k_row, &inc_k);
+		(float*)poly_X_row, &inc_row, &f_beta, (float*)k_row, &inc_row);
 	} else if(typeid(realtype) == typeid(doubletype)){
-	  //dgemv("T", &n_cols, &N, &d_alpha, (double*)bk_D, &n_cols,
-	  //(double*)poly_X_row, &inc_x, &d_beta, (double*)test, &inc_k);
-	  dgemm("T", "N", &N, &inc_x, &n_cols, &d_alpha, (double*)bk_D, &n_cols,
-		(double*)poly_X_row, &n_cols, &d_beta, (double*)test, &N);
-	  cout<<"here: " << k[0]<<endl;
+	  dgemv("T", &n_cols, &N, &d_alpha, (double*)bk_D, &n_cols,
+		(double*)poly_X_row, &inc_row, &d_beta, (double*)k_row, &inc_row);
 	}
 	for(jx = 0 ; jx < N ; ++jx){
-	  k[ix+jx*Tplus1] = k_row[jx];
+	  k[(ix+1)+jx*Tplus1] = k_row[jx];
 	}
-	if(ix==0) print_vector(2,test);
-	if(ix==0) print_matrix(n_cols,N,bk_D,n_cols,N);
       }
 
       //======================================================================
@@ -644,7 +649,7 @@ int main()
       for(ix = 0 ; ix < T ; ++ix){
 	C[ix] = 0.0;
 	for(jx = 0 ; jx < N ; ++jx){
-	  C[ix] += A*pow(k[ix+jx*Tplus1], alpha)*a[ix+jx*Tplus1] - k[(ix+1)+jx*Tplus1] + k[ix+jx*Tplus1]*(1-delta);
+	  C[ix] += A*pow(k[ix+jx*Tplus1], alpha)*a[ix+jx*T] - k[(ix+1)+jx*Tplus1] + k[ix+jx*Tplus1]*(1-delta);
 	}
       }
 
@@ -654,7 +659,7 @@ int main()
 	  c[ix + jx*T] = C[ix]/N;
 	}
       }
-      
+
       //======================================================================
       // 15.2.3 Approximate the conditional expectations for t=1,...T-1 using 
       // the integration method chosen 
@@ -702,19 +707,19 @@ int main()
 	      X1_integral[ix + (jx+N)*T] = a1[ix + jx*T];
 	    }
 	  }
-	  //	  if(hx==8) print_matrix(T,2*N,X1_integral,10,2*N);
-	  //if(hx==8) print_matrix(T,N,k,10,N);
+
 	  // Polynomial bases
-	  poly_X_integral = Ord_Polynomial_N(X1_integral, T, 2*N, D, n_cols);
+	  poly_X_integral = (REAL*)realloc(poly_X_integral, T*n_cols*sizeof(REAL));
+	  Ord_Polynomial_N(X1_integral, T, 2*N, D, poly_X_integral);
 
 	  // Compute capital of period t+2 (chosen at t+1) using the
 	  // capital policy functions; n_nodes-by-N 
 	  if(typeid(realtype) == typeid(singletype)){
 	    sgemm("N", "N", &T, &N, &n_cols, &f_alpha, (float*)poly_X_integral,
-		  &T, (float*)bk_D, &n_cols, &f_beta, (float*)k2, &Tplus1);
+		  &T, (float*)bk_D, &n_cols, &f_beta, (float*)k2, &T);
 	  } else if(typeid(realtype) == typeid(doubletype)){
 	    dgemm("N", "N", &T, &N, &n_cols, &d_alpha, (double*)poly_X_integral,
-		  &T, (double*)bk_D, &n_cols, &d_beta, (double*)k2, &Tplus1);
+		  &T, (double*)bk_D, &n_cols, &d_beta, (double*)k2, &T);
 	  }
 
 	  // C is computed by summing up individual consumption, which in
@@ -722,7 +727,7 @@ int main()
 	  for(ix = 0 ; ix < T ; ++ix){
 	    C[ix] = 0.0;
 	    for(jx = 0 ; jx < N ; ++jx){
-	      C[ix] += A*pow(k[(ix+1)+jx*Tplus1], alpha)*a1[ix+jx*T] - k2[ix+jx*Tplus1] + k[(ix+1)+jx*Tplus1]*(1-delta);
+	      C[ix] += A*pow(k[(ix+1)+jx*Tplus1], alpha)*a1[ix+jx*T] - k2[ix+jx*T] + k[(ix+1)+jx*Tplus1]*(1-delta);
 	    }
 	  }
 
@@ -764,7 +769,8 @@ int main()
 
       // Compute new coefficients of the capital policy functions using the
       // chosen approximation method
-      bk_hat_D = Num_Stab_Approx(Tminus1, n_cols, poly_X, N, Y, RM, penalty, normalize);
+      bk_hat_D = (REAL*)realloc(bk_hat_D, n_cols*N*sizeof(REAL));      
+      Num_Stab_Approx(Tminus1, n_cols, poly_X, N, Y, RM, penalty, normalize, bk_hat_D);
 
       // Update the coefficients of the capital policy functions using damping 
       for(ix = 0 ; ix < n_cols ; ++ix){
@@ -783,10 +789,9 @@ int main()
       k_old = k;
       k = k_temp;
       ++count;
-      cout << "Order of Integration: " << D << endl;
-      cout<< "Iteration: " << count <<endl;
-      cout<< "dif_GSSA_D: " << dif_GSSA_D <<endl;
-      
+      //cout << "Order of Integration: " << D << endl;
+      //cout<< "Iteration: " << count <<endl;
+      //cout<< "dif_GSSA_D: " << dif_GSSA_D <<endl;
     }
 
     //========================================================================
@@ -794,9 +799,9 @@ int main()
     //========================================================================
     // Store the coefficients of the polynomial of degree D that approximates
     // capital policy functions of N countries 
-    for(ix = 0 ; ix < npol[D-1] ; ++ix){
+    for(ix = 0 ; ix < n_cols ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	BK[ix + jx*npol[D-1] + (D-1)*npol[D-1]*N] = bk_D[ix+jx*npol[D-1]];
+	BK[ix + jx*n_cols + (D-1)*n_cols*N] = bk_D[ix+jx*n_cols];
       }
     }
 
@@ -805,23 +810,8 @@ int main()
     time_GSSA[D-1] = (toc - tic)/(REAL)CLOCKS_PER_SEC; 
     cout << time_GSSA[D-1] << endl;
 
-    free(epsi_nodes);
-    free(weight_nodes);
-    delete[] vcv;
-    delete[] k;
-    delete[] a;
-    delete[] bk_1d;
-    delete[] k_old;
-    delete[] x;
-    delete[] C;
-    delete[] c;
-    delete[] Y;
-    delete[] Y_copy;
-    delete[] npol;
-    delete[] BK;
-
-    /*
   }
+  
 
   //===========================================================================
   // 16. Accuracy test of the GSSA solutions: errors on a stochastic simulation
@@ -837,7 +827,7 @@ int main()
 
   // Restrict the series of the productivity levels for the test on a
   // stochastic simulation to the given T_test<=10,200 and N<=10
-  REAL* a_test = new REAL[T_test*N];
+  REAL a_test[T_test*N];
   REAL trash;
   ifstream fileIn;
   fileIn.open(fileName);
@@ -847,7 +837,7 @@ int main()
 	fileIn >> a_test[0];
       } else {
 	if(jx < N){
-	  fileIn >> a_test[(ix-T)*N + jx];
+	  fileIn >> a_test[(ix-T) + jx*T_test];
 	} else {
 	  fileIn >> trash;
 	}
@@ -856,14 +846,14 @@ int main()
   }
   fileIn.close();
   
-
   // Initial condition for capital (equal to steady state)
-  REAL* k_test = new REAL[T_test*N];
+  REAL k_test[T_test*N];
   for(ix = 0 ; ix < T_test ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
-      k_test[ix*N + jx] = 1.0;
+      k_test[ix + jx*T_test] = 1.0;
     }
   }
+
 
   //===========================================================================
   // 16.2 Choose an integration method for evaluating accuracy of solutions
@@ -882,9 +872,11 @@ int main()
   //===========================================================================
 
   n_cols = npol[0];
-  REAL* bk = new REAL[n_cols*N];
-  REAL* X1_test = new REAL[T_test*2*N];
-  REAL* poly_X_row_test = new REAL[n_cols];
+  REAL* bk = NULL;
+  REAL X1_test[T_test*2*N];
+  REAL X1_row_test[2*N];
+  REAL* poly_X_row_test = NULL;
+  REAL k_row_test[N];
   int discard = 200; // discard the first 200 observations
   REAL Errors_mean[D_max], Errors_max[D_max], time_test[D_max];
   for(D = 1 ; D <= D_max ; ++D){
@@ -895,16 +887,14 @@ int main()
     //=========================================================================
 
     // Proper memory allocation
-    if(D > 1){
-      n_cols = npol[D-1];
-      bk = (REAL*)realloc(bk, n_cols*N*sizeof(REAL));
-      poly_X_row_test = (REAL*)realloc(poly_X_row_test, n_cols*sizeof(REAL));
-    }
+    n_cols = npol[D-1];
+    bk = (REAL*)realloc(bk, n_cols*N*sizeof(REAL));
+    poly_X_row_test = (REAL*)realloc(poly_X_row_test, n_cols*sizeof(REAL));
 
     // The vector of coefficients of the polynomial of degree D
     for(ix = 0 ; ix < n_cols ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	bk[ix*N+jx] = BK[ix*N + jx + (D-1)*N*n_cols];
+	bk[ix+jx*n_cols] = BK[ix + jx*n_cols + (D-1)*n_cols*N];
       }
     }
 
@@ -913,39 +903,48 @@ int main()
       // The basis functions of a polynomial of degree D at time t	
       for(jx = 0 ; jx < 2*N ; ++jx){
 	if(jx < N){
-	  X1_test[ix*2*N + jx] = k_test[ix*N + jx];
+	  X1_test[ix + jx*T_test] = k_test[ix + jx*T_test];
 	} else {
-	  X1_test[ix*2*N + jx] = a_test[ix*N + jx - N];
+	  X1_test[ix + jx*T_test] = a_test[ix + (jx-N)*T_test];
 	}
       }
 
       // Polynomial bases
-      poly_X_row_test = Ord_Polynomial_N(X1_test+ix*2*N, 1, 2*N, D, n_cols);
+      for(jx = 0 ; jx < 2*N ; ++jx){
+	X1_row_test[jx] = X1_test[ix+jx*T_test];
+      }
+      Ord_Polynomial_N(X1_row_test, 1, 2*N, D, poly_X_row_test);
 
       // Compute next-period capital using bk
       if(typeid(realtype) == typeid(singletype)){
-	cblas_sgemv(CblasRowMajor, CblasTrans, n_cols, N, 1.0, (float*)bk, N,
-		    (float*)poly_X_row_test, 1, 0.0, (float*)k_test+(ix+1)*N,
-		    1);
+	sgemv("T", &n_cols, &N, &f_alpha, (float*)bk, &n_cols,
+	      (float*)poly_X_row_test, &inc_row, &f_beta, (float*)k_row_test, &inc_row);
       } else if(typeid(realtype) == typeid(doubletype)){
-	cblas_dgemv(CblasRowMajor, CblasTrans, n_cols, N, 1.0, (double*)bk, N,
-		    (double*)poly_X_row_test, 1, 0.0, (double*)k_test+(ix+1)*N,
-		    1);
+	dgemv("T", &n_cols, &N, &d_alpha, (double*)bk, &n_cols,
+	      (double*)poly_X_row_test, &inc_row, &d_beta, (double*)k_row_test, &inc_row);
+      }
+      for(jx = 0 ; jx < N ; ++jx){
+	k_test[(ix+1)+jx*T_test] = k_row_test[jx];
       }
     }
 
     //=========================================================================
     // 16.3.2 Errors across 10,000 points on a stochastic simulation
     //=========================================================================
-
-    Accuracy_Test_N(T_test, N, k_test, a_test, bk, D, IM_test, alpha, gam,
-		    delta, beta, A, tau, rho, vcv, discard, Errors_mean[D-1],
-		    Errors_max[D-1], time_test[D-1]);
-
+    Accuracy_Test_N(T_test, N, k_test, a_test, n_cols, bk, D, IM_test,
+		    alpha, gam, delta, beta, A, tau, rho, vcv_copy, discard,
+		    Errors_mean[D-1], Errors_max[D-1], time_test[D-1]);
     // Errors_mean    is the unit-free average absolute approximation error  
     //                across 4N+1 optimality conditions (in log10) 
     // Errors_max     is the unit-free maximum absolute approximation error   
     //                across 4N+1 optimality conditions (in log10) 
+
+    // Re-copy vcv
+    for(jx = 0 ; jx < N ; ++jx){
+      for(ix = 0 ; ix < N ; ++ix){
+	vcv_copy[ix + jx*N] = vcv[ix + jx*N];
+      }
+    }
   }
 
   //===========================================================================
@@ -982,7 +981,10 @@ int main()
   cout << endl;
 
   //save Results_N time_GSSA time_test Errors_mean Errors_max kdamp RM IM N T BK k_test a_test IM_test alpha gam delta beta A tau rho vcv discard npol D_max T_test ;
-  */
 
-    return 0;
+  free(epsi_nodes);
+  free(weight_nodes);
+  delete[] k, k_old;
+
+  return 0;
 }

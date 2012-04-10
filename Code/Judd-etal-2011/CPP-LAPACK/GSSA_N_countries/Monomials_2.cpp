@@ -161,7 +161,7 @@ void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   for(ix = 1 ; ix <= 2*N ; ++ix){
     weight_nodes[ix] = (4-N)/(2*pow(N+2,2));
   }
-  for(ix = (2*N+1) ; ix <= n_nodes ; ++ix){
+  for(ix = (2*N+1) ; ix < n_nodes ; ++ix){
     weight_nodes[ix] = 1/pow(N+2,2);
   }
 

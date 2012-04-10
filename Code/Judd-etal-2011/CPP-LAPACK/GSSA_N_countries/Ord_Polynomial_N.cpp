@@ -29,7 +29,7 @@
 
 using namespace std;
 
-REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
+void Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, REAL* basis_fs)
 {
 
   int ix, jx, j1x, j2x, j3x, j4x, j5x;
@@ -37,15 +37,6 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
   // A polynomial is given by the sum of polynomial basis functions, phi(i),
   // multiplied by the coefficients; see condition (13) in JMM (2011). By 
   // convention, the first basis function is one. 
-
-  // allocate storage for the matrix of basis function
-  int higher_order = 1;
-  for(ix = 1 ; ix <= D ; ++ix){
-    higher_order *= (dimen+ix);
-    higher_order /= ix;
-  }
-  n_cols = higher_order;
-  REAL* basis_fs = new REAL[n_rows*n_cols];
 
   //==========================================================================
   // The matrix of the basis functions - 1st degree
@@ -129,5 +120,4 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
       }
     }
   }
-  return basis_fs;
 }

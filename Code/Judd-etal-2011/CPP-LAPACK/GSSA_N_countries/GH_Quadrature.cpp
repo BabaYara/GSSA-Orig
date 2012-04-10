@@ -174,10 +174,10 @@ void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   //==========================================================================
 
   // A supplementary matrix for integration nodes; n_nodes-by-N
-  REAL* z1 = new REAL[n_nodes*N];
+  REAL z1[n_nodes*N];
 
   // A supplementary matrix for integration weights; n_nodes-by-1
-  REAL* w1 = new REAL[n_nodes];
+  REAL w1[n_nodes];
   for(ix = 0 ; ix < n_nodes ; ++ix){
     w1[ix] = 1.0;
   }
@@ -245,8 +245,4 @@ void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
     dgemm("N", "N", &n_nodes, &N, &N, &d_alpha, (double*)z, &n_nodes,
 	  (double*)vcv, &N, &d_beta, (double*)epsi_nodes, &n_nodes);
   }
-
-  // delete arrays
-  delete[] z1, w1;
-
 }

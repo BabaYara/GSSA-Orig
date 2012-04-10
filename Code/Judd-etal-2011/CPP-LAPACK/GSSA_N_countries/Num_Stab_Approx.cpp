@@ -36,14 +36,11 @@
 
 using namespace std;
 
-REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
-		      int penalty, int normalize)
+void Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
+		     int penalty, int normalize, REAL* B)
 {
 
   int ix, jx;
-
-  // Storage for regression coefficients
-  REAL* B = new REAL[n*N];
 
   //==========================================================================
   // 2. Normalize the data
@@ -57,13 +54,13 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
     n = n;
   }
 
-  REAL* X1 = new REAL[Tplus1*n1];
-  REAL* Y1 = new REAL[T*N];
-  REAL* B1 = new REAL[n1*N];
-  REAL* X_means = new REAL[n1];
-  REAL* X_sds = new REAL[n1];
-  REAL* Y_means = new REAL[N];
-  REAL* Y_sds = new REAL[N];
+  REAL X1[Tplus1*n1];
+  REAL Y1[T*N];
+  REAL B1[n1*N];
+  REAL X_means[n1];
+  REAL X_sds[n1];
+  REAL Y_means[N];
+  REAL Y_sds[N];
 
   if((normalize == 1) | (RM >= 5)){ 
 
@@ -86,8 +83,16 @@ REAL* Num_Stab_Approx(int T, int n, REAL* X, int N, REAL* Y, int RM,
   } else {
 
     // If we use unnormalized data, ...
-    X1 = X;    // Leave X without changes
-    Y1 = Y;    // Leave Y without changes
+    for(ix = 0 ; ix < Tplus1 ; ++ix){
+      for(jx = 0 ; jx < n1 ; ++jx){
+	X1[ix+jx*Tplus1] = X[ix+jx*Tplus1]; // Leave X without changes
+      }
+    }
+    for(ix = 0 ; ix < T ; ++ix){
+      for(jx = 0 ; jx < N ; ++jx){
+	Y1[ix+jx*T] = Y[ix+jx*T]; // Leave Y without changes
+      }
+    }
 
   }
 
@@ -459,13 +464,4 @@ end
       }
     }
   }
-
-  free(X1);
-  free(Y1);
-  free(B1);
-  free(X_means);
-  free(X_sds);
-  free(Y_means);
-  //free(Y_sds);
-  return B;
 }

@@ -35,14 +35,14 @@ void Productivity(int T, int N, REAL* a, REAL sigma, REAL rho)
 
   // A random draw of common-for-all-countries productivity shocks for
   // T periods; T-by-1
-  REAL* EPSI = new REAL[T];
+  REAL EPSI[T];
   for(ix = 0 ; ix < T ; ++ix) EPSI[ix] = randn.dev();
 
   // A random draw of country-specific productivity shocks for T periods
   // and N countries; T-by-N
   // Compute the error terms in the process for productivity level using
   // condition (4) in JMM (2011); T-by-N
-  REAL* epsi = new REAL[T*N];
+  REAL epsi[T*N];
   for(jx = 0 ; jx < N ; ++jx){
     for(ix = 0 ; ix < T ; ++ix){
       epsi[ix + jx*T] = (randn.dev() + EPSI[ix])*sigma;
