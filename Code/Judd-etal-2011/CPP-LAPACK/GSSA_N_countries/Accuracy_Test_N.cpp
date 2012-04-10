@@ -57,7 +57,7 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, int n_cols, REAL* bk,
   int ix, jx, px;
 
   // Start counting time needed to run the test
-  clock_t tic = clock();
+  double tic = curr_second();
 
   //==========================================================================
   // 2. Integration method for evaluating accuracy
@@ -387,6 +387,6 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, int n_cols, REAL* bk,
   //==========================================================================
   // 7. Time needed to run the test
   //==========================================================================
-  time_test = (clock() - tic)/(REAL)CLOCKS_PER_SEC;
+  time_test = curr_second() - tic;
 
 }

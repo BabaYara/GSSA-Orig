@@ -14,6 +14,7 @@ extern const float singletype;
 extern const double doubletype;
 extern const REAL realtype;
 
+double curr_second (void);
 void Productivity(int T, int N, REAL* a_init, REAL sigma, REAL rho);
 void Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, REAL* basis_fs);
 void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,

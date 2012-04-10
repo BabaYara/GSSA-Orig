@@ -195,7 +195,7 @@ int main()
   // integration method (this solution will be used as an initial guess for
   // the other cases)
   //==========================================================================
-  clock_t tic = clock(); // Start counting time needed to compute the solution
+  double tic = curr_second(); // Start counting time needed to compute the solution
                             
   //==========================================================================
   // 6. The GSSA parameters
@@ -406,8 +406,8 @@ int main()
   //==========================================================================
   // 10. Time needed to compute the initial guess
   //==========================================================================
-  clock_t toc = clock();
-  REAL time_GSSA_1d = (toc - tic)/(REAL)CLOCKS_PER_SEC; 
+  double toc = curr_second();
+  REAL time_GSSA_1d = toc - tic; 
   cout << time_GSSA_1d << endl;
 
   //==========================================================================
@@ -415,7 +415,7 @@ int main()
   // of the following integration methods: Monte Carlo, Gauss-Hermite product  
   // and monomial non-product methods
   //==========================================================================
-  tic = clock();      // Start counting time needed to compute the solution
+  tic = curr_second();      // Start counting time needed to compute the solution
                             
   //==========================================================================
   // 11. The GSSA parameters
@@ -806,8 +806,8 @@ int main()
     }
 
     // Time needed to compute the polynomial solution of degree D
-    toc = clock();
-    time_GSSA[D-1] = (toc - tic)/(REAL)CLOCKS_PER_SEC; 
+    toc = curr_second();
+    time_GSSA[D-1] = toc - tic; 
     cout << time_GSSA[D-1] << endl;
 
   }
