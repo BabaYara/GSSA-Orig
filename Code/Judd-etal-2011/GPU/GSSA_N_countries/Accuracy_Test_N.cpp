@@ -47,16 +47,17 @@
 
 using namespace std;
 
-void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
-		     int IM, REAL alpha, REAL gam, REAL delta, REAL beta,
-		     REAL A, REAL tau, REAL rho, REAL* vcv, int discard,
-		     REAL& Errors_mean, REAL& Errors_max, REAL& time_test)
+void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, int n_cols, REAL* bk,
+		     int D, int IM, REAL alpha, REAL gam, REAL delta,
+		     REAL beta, REAL A, REAL tau, REAL rho, REAL* vcv,
+		     int discard, REAL& Errors_mean, REAL& Errors_max,
+		     REAL& time_test)
 {
 
   int ix, jx, px;
 
   // Start counting time needed to run the test
-  clock_t tic = clock();
+  double tic = curr_second();
 
   //==========================================================================
   // 2. Integration method for evaluating accuracy
@@ -97,16 +98,16 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
   REAL X1[P*2*N];
   for(ix = 0 ; ix < P ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
-      X1[ix*2*N + jx] = k[ix*N + jx];
+      X1[ix + jx*P] = k[ix + jx*P];
     }
     for(jx = N ; jx < 2*N ; ++jx){
-      X1[ix*2*N + jx] = a[ix*N + jx - N];
+      X1[ix + jx*P] = a[ix + (jx-N)*P];
     }
   }
 
   // Form a complete ordinary polynomial of degree D on given set of points
-  int n_cols;
-  REAL* poly_X = Ord_Polynomial_N(X1, P, 2*N, D, n_cols);
+  REAL poly_X[P*n_cols];
+  Ord_Polynomial_N(X1, P, 2*N, D, poly_X);
 
   //==========================================================================
   // 4. Given the solution for capital, compute consumption on the given set
@@ -118,7 +119,12 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
   REAL a1[n_nodes*N], k1_dupl[n_nodes*N], X1_dupl[n_nodes*2*N], k2[n_nodes*N];
   REAL C1[n_nodes], c1[n_nodes*N], MUC0j[N], MUC1j[n_nodes*N];
   REAL lambda0, lambda1[N], numerator, denominator, Errors[P*nE_cols];
-  REAL* poly_X_dupl;
+  REAL poly_X_dupl[n_nodes*n_cols];
+  float f_alpha = 1.0;
+  double d_alpha = 1.0;
+  float f_beta = 0.0;
+  double d_beta = 0.0;
+  int inc_row = 1;
   for(px = 0 ; px < P ; ++px){ // For each given point, ...     
     
     // Display the point (with the purpose of monitoring the progress)
@@ -130,12 +136,12 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     
     // N capital stocks and productivity levels of period p
     for(ix = 0 ; ix < N ; ++ix){
-      k0[ix] = k[px*N+ix];
-      a0[ix] = a[px*N+ix];
+      k0[ix] = k[px+ix*P];
+      a0[ix] = a[px+ix*P];
     }
     // Complete (second-degree) polynomial bases at t
     for(ix = 0 ; ix < n_cols ; ++ix){
-      poly_X0[ix] = poly_X[px*n_cols+ix];
+      poly_X0[ix] = poly_X[px+ix*P];
     }          
 
     //========================================================================
@@ -145,11 +151,11 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     // Compute a row-vector of capital of period t+1 (chosen at t) using
     // the corresponding capital policy functions; 1-by-N
     if(typeid(realtype) == typeid(singletype)){
-      cblas_sgemv(CblasRowMajor, CblasTrans, n_cols, N, 1.0, (float*)bk,
-		  N, (float*)poly_X0, 1, 0.0, (float*)k1, 1);
+      sgemv("T", &n_cols, &N, &f_alpha, (float*)bk, &n_cols,
+	    (float*)poly_X0, &inc_row, &f_beta, (float*)k1, &inc_row);
     } else if(typeid(realtype) == typeid(doubletype)){
-      cblas_dgemv(CblasRowMajor, CblasTrans, n_cols, N, 1.0, (double*)bk,
-		  N, (double*)poly_X0, 1, 0.0, (double*)k1, 1);
+      dgemv("T", &n_cols, &N, &d_alpha, (double*)bk, &n_cols,
+	    (double*)poly_X0, &inc_row, &d_beta, (double*)k1, &inc_row);
     }
         
     // C is computed by summing up individual consumption, which in turn, is 
@@ -172,7 +178,7 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     // using condition (?) in the online appendix; n_nodes-by-N
     for(ix = 0 ; ix < n_nodes ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	a1[ix*N+jx] = pow(a0[jx], rho)*exp(epsi_nodes[ix*N+jx]);
+	a1[ix+jx*n_nodes] = pow(a0[jx], rho)*exp(epsi_nodes[ix+jx*n_nodes]);
       }
     }
 
@@ -180,33 +186,31 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     // rows; n_nodes-by-N 
     for(ix = 0 ; ix < n_nodes ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	k1_dupl[ix*N+jx] = k1[jx];
+	k1_dupl[ix+jx*n_nodes] = k1[jx];
       }
     }
 
     // Matrix which holds data for polynomial bases
     for(ix = 0 ; ix < n_nodes ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	X1_dupl[ix*2*N + jx] = k1_dupl[ix*N + jx];
+	X1_dupl[ix + jx*n_nodes] = k1_dupl[ix + jx*n_nodes];
       }
       for(jx = N ; jx < 2*N ; ++jx){
-	X1_dupl[ix*2*N + jx] = a1[ix*N + jx - N];
+	X1_dupl[ix + jx*n_nodes] = a1[ix + (jx-N)*n_nodes];
       }
     }
 
     // Form a complete polynomial of degree D (at t+1) in the given point 
-    poly_X_dupl = Ord_Polynomial_N(X1_dupl, n_nodes, 2*N, D, n_cols);
+    Ord_Polynomial_N(X1_dupl, n_nodes, 2*N, D, poly_X_dupl);
     
     // Compute capital of period t+2 (chosen at t+1) using the second-
     // degree capital policy functions; n_nodes-by-N  
     if(typeid(realtype) == typeid(singletype)){
-      cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n_nodes, N,
-		  n_cols, 1.0, (float*)poly_X_dupl, n_cols, (float*)bk,
-		  N, 0.0, (float*)k2, N);
+      sgemm("N", "N", &n_nodes, &N, &n_cols, &f_alpha, (float*)poly_X_dupl,
+	    &n_nodes, (float*)bk, &n_cols, &f_beta, (float*)k2, &n_nodes);
     } else if(typeid(realtype) == typeid(doubletype)){
-      cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, n_nodes, N,
-		  n_cols, 1.0, (double*)poly_X_dupl, n_cols, (double*)bk,
-		  N, 0.0, (double*)k2, N);
+      dgemm("N", "N", &n_nodes, &N, &n_cols, &d_alpha, (double*)poly_X_dupl,
+	    &n_nodes, (double*)bk, &n_cols, &d_beta, (double*)k2, &n_nodes);
     }
     
     // Aggregate consumption is computed by summing up individual consumption, 
@@ -215,14 +219,14 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     for(ix = 0 ; ix < n_nodes ; ++ix){
       C1[ix] = 0.0;
       for(jx = 0 ; jx < N ; ++jx){
-	C1[ix] += A*pow(k1_dupl[ix*N+jx], alpha)*a1[ix*N+jx] - k2[ix*N+jx] + k1_dupl[ix*N+jx]*(1-delta);
+	C1[ix] += A*pow(k1_dupl[ix+jx*n_nodes], alpha)*a1[ix+jx*n_nodes] - k2[ix+jx*n_nodes] + k1_dupl[ix+jx*n_nodes]*(1-delta);
       }
     }
 
     // Individual consumption is the same for all countries; n_nodes-by-N
     for(ix = 0 ; ix < n_nodes ; ++ix){
       for(jx = 0 ; jx < N ; ++jx){
-	c1[ix*N + jx] = C1[ix]/N;
+	c1[ix + jx*n_nodes] = C1[ix]/N;
       }
     }
 
@@ -256,8 +260,8 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
 
 	// Compute a country's marginal utility of consumption multiplied 
 	// by its welfare weight
-	MUC1j[ix*N+jx] = tau*pow(c1[ix*N+jx], -gam);
-	lambda1[ix] += MUC1j[ix*N+jx];
+	MUC1j[ix+jx*n_nodes] = tau*pow(c1[ix+jx*n_nodes], -gam);
+	lambda1[ix] += MUC1j[ix+jx*n_nodes];
 
       }
 
@@ -274,10 +278,10 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     //========================================================================
 
     for(jx = 0 ; jx < N ; ++jx){
-      Errors[px*nE_cols+jx] = 1.0;
+      Errors[px+jx*P] = 1.0;
       for(ix = 0 ; ix < n_nodes ; ++ix){
         // A unit-free Euler-equation approximation error of country j
-	Errors[px*nE_cols+jx] -= weight_nodes[ix]*(beta*(lambda1[ix]/lambda0)*(1-delta+alpha*A*pow(k1[jx], alpha-1)*a1[ix*N+jx]));
+	Errors[px+jx*P] -= weight_nodes[ix]*(beta*(lambda1[ix]/lambda0)*(1-delta+alpha*A*pow(k1[jx], alpha-1)*a1[ix+jx*n_nodes]));
       }
     }
         
@@ -285,7 +289,7 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     // 5.2 Unit-free errors in the optimality conditions w.r.t. consumption
     //======================================================================== 
     for(jx = 0 ; jx < N ; ++jx){
-      Errors[px*nE_cols+N+jx] = 1-lambda0/(tau*pow(c0[jx], -gam)); 
+      Errors[px+(N+jx)*P] = 1-lambda0/(tau*pow(c0[jx], -gam)); 
       // A unit-free approximation error in the optimality condition w.r.t. 
       // consumption of country j (this condition equates marginal utility 
       // of consumption, multiplied by the welfare weight, and the 
@@ -296,7 +300,7 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     // 5.3 Unit-free errors in the optimality conditions w.r.t. labor 
     //======================================================================== 
     for(jx = 0 ; jx < N ; ++jx){    
-      Errors[px*nE_cols + 2*N + jx] = 0.0;
+      Errors[px + (2*N+jx)*P] = 0.0;
       // These errors  are zero by construction 
     }
         
@@ -309,7 +313,7 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
       numerator += c0[ix] + k1[ix] - k0[ix]*(1-delta);
       denominator += A*pow(k0[ix], alpha)*a0[ix];
     }
-    Errors[px*nE_cols+3*N] = 1.0 - numerator/denominator;
+    Errors[px+3*N*P] = 1.0 - numerator/denominator;
     // This error is a unit-free expression of the resource constraint  
     // (?) in the online appendix
 
@@ -317,7 +321,7 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
     // 5.5 Approximation errors in the capital-accumulation equation
     //======================================================================== 
     for(jx = 0 ; jx < N ; ++jx){    
-      Errors[px*nE_cols + 3*N + 1 + jx] = 0.0;
+      Errors[px + (3*N+1+jx)*P] = 0.0;
       // These errors are always zero by construction 
     }
         
@@ -337,18 +341,28 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
   //==========================================================================
   // 6.1 Approximation errors across all the optimality conditions
   //========================================================================== 
-  
+
+  // Discard the burn in
+  int P_keep = P - discard;
+  int nElements_Errors = P_keep*nE_cols;
+  REAL Errors_keep[P_keep*nE_cols];  
+  for(ix = 0 ; ix < P_keep ; ++ix){
+    for(jx = 0 ; jx < nE_cols ; ++jx){
+      Errors_keep[ix+jx*P_keep] = Errors[(ix+discard)+jx*P];
+    }
+  }
+
   // Average and Maximum absolute approximation error
   int ind_max;
   if(typeid(realtype) == typeid(singletype)){
-    Errors_mean = cblas_sasum((P-discard)*nE_cols, (float*)Errors+discard*nE_cols, 1);
-    ind_max = cblas_isamax((P-discard)*nE_cols, (float*)Errors+discard*nE_cols, 1);
+    Errors_mean = sasum(&nElements_Errors, (float*)Errors_keep, &inc_row);
+    ind_max = isamax(&nElements_Errors, (float*)Errors_keep, &inc_row);
   } else if(typeid(realtype) == typeid(doubletype)){
-    Errors_mean = cblas_dasum((P-discard)*nE_cols, (double*)Errors+discard*nE_cols, 1);
-    ind_max = cblas_idamax((P-discard)*nE_cols, (double*)Errors+discard*nE_cols, 1);
+    Errors_mean = dasum(&nElements_Errors, (double*)Errors_keep, &inc_row);
+    ind_max = idamax(&nElements_Errors, (double*)Errors_keep, &inc_row);
   }
-  Errors_mean = log10(Errors_mean/((P-discard)*nE_cols));
-  Errors_max = log10(fabs(Errors[discard*nE_cols + ind_max]));
+  Errors_mean = log10(Errors_mean/nElements_Errors);
+  Errors_max = log10(fabs(Errors_keep[ind_max-1]));
  
   //==========================================================================
   // 6.2 Maximum approximation errors disaggregated by the optimality
@@ -373,6 +387,6 @@ void Accuracy_Test_N(int P, int N, REAL* k, REAL* a, REAL* bk, int D,
   //==========================================================================
   // 7. Time needed to run the test
   //==========================================================================
-  time_test = (clock() - tic)/(REAL)CLOCKS_PER_SEC;
+  time_test = curr_second() - tic;
 
 }

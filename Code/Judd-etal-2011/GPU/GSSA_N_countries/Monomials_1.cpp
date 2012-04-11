@@ -42,7 +42,7 @@ void Monomials_1(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   REAL z1[n_nodes*N];
   for(ix = 0 ; ix < n_nodes ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
-      z1[ix*N + jx] = 0.0;
+      z1[ix + jx*n_nodes] = 0.0;
     }
   }
                        
@@ -50,8 +50,8 @@ void Monomials_1(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   // other variables take value 0
   for(ix = 0 ; ix < N ; ++ix){
     for(jx = (2*ix+1) ; jx < 2*(ix+1) ; ++jx){
-      z1[2*ix*N + ix] = 1.0;
-      z1[(2*ix+1)*N + ix] = -1.0;
+      z1[2*ix + ix*n_nodes] = 1.0;
+      z1[(2*ix+1) + ix*n_nodes] = -1.0;
     }
   }
   // For example, for N = 2, z1 = [1 0; -1 0; 0 1; 0 -1]
@@ -62,19 +62,32 @@ void Monomials_1(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   //==========================================================================
 
   // Cholesky decomposition of the variance-covariance matrix
-  REAL* vcv_chol = new REAL[N*N];
-  cholesky(vcv, N, vcv_chol);
+  int info;
+  if(typeid(realtype) == typeid(singletype)){
+    spotrf("U", &N, (float*)vcv, &N, &info);
+  } else if(typeid(realtype) == typeid(doubletype)){
+    dpotrf("U", &N, (double*)vcv, &N, &info);
+  }
+  for(ix = 1 ; ix < N ; ++ix){
+    for(jx = 0 ; jx < ix ; ++jx){
+      vcv[ix + jx*N] = 0.0;
+    }
+  }
+
+
                                  
   // Integration nodes; see condition (B.7) in the Supplement
   // to JMM (2011); n_nodes-by-N
   if(typeid(realtype) == typeid(singletype)){
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n_nodes, N, N,
-		sqrt(N), (float*)z1, N, (float*)vcv_chol, N, 0.0,
-		(float*)epsi_nodes, N);
+    float f_alpha = sqrt(N);
+    float f_beta = 0.0;
+    sgemm("N", "N", &n_nodes, &N, &N, &f_alpha, (float*)z1, &n_nodes,
+	  (float*)vcv, &N, &f_beta, (float*)epsi_nodes, &n_nodes);
   } else if(typeid(realtype) == typeid(doubletype)){
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, n_nodes, N, N,
-		sqrt(N), (double*)z1, N, (double*)vcv_chol, N, 0.0,
-		(double*)epsi_nodes, N);
+    double d_alpha = sqrt(N);
+    double d_beta = 0.0;
+    dgemm("N", "N", &n_nodes, &N, &N, &d_alpha, (double*)z1, &n_nodes,
+	  (double*)vcv, &N, &d_beta, (double*)epsi_nodes, &n_nodes);
   }
 
   //==========================================================================

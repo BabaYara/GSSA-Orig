@@ -50,10 +50,11 @@ void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   // 1.2 Deviations in one dimension
   //==========================================================================
   // A supplementary matrix for integration nodes; 2N-by-N
-  REAL z1[2*N*N];
-  for(ix = 0 ; ix < 2*N ; ++ix){
+  int nrows_z1 = 2*N;
+  REAL z1[nrows_z1*N];
+  for(ix = 0 ; ix < nrows_z1 ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
-      z1[ix*N + jx] = 0.0;
+      z1[ix + jx*nrows_z1] = 0.0;
     }
   }
                        
@@ -61,8 +62,8 @@ void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   // other variables take value 0
   for(ix = 0 ; ix < N ; ++ix){
     for(jx = (2*ix+1) ; jx < 2*(ix+1) ; ++jx){
-      z1[2*ix*N + ix] = 1.0;
-      z1[(2*ix+1)*N + ix] = -1.0;
+      z1[2*ix + ix*nrows_z1] = 1.0;
+      z1[(2*ix+1) + ix*nrows_z1] = -1.0;
     }
   }
   // For example, for N = 2, z1 = [1 0; -1 0; 0 1; 0 -1]
@@ -71,10 +72,11 @@ void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   // 1.3 Deviations in two dimensions
   //==========================================================================
   // A supplementary matrix for integration nodes; 2N(N-1)-by-N
-  REAL z2[2*N*(N-1)*N];
-  for(ix = 0 ; ix < 2*N*(N-1) ; ++ix){
+  int nrows_z2 = 2*N*(N-1);
+  REAL z2[nrows_z2*N];
+  for(ix = 0 ; ix < nrows_z2 ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
-      z2[ix*N + jx] = 0.0;
+      z2[ix + jx*nrows_z2] = 0.0;
     }
   }
 
@@ -83,14 +85,14 @@ void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   ix = 0;
   for(px = 0 ; px < (N-1) ; ++px){
     for(qx = (px+1) ; qx < N ; ++qx){
-      z2[4*ix*N + px] = 1.0;
-      z2[(4*ix+1)*N + px] = -1.0;
-      z2[(4*ix+2)*N + px] = 1.0;
-      z2[(4*ix+3)*N + px] = -1.0;
-      z2[4*ix*N + qx] = 1.0;
-      z2[(4*ix+1)*N + qx] = 1.0;
-      z2[(4*ix+2)*N + qx] = -1.0;
-      z2[(4*ix+3)*N + qx] = -1.0;
+      z2[4*ix + px*nrows_z2] = 1.0;
+      z2[(4*ix+1) + px*nrows_z2] = -1.0;
+      z2[(4*ix+2) + px*nrows_z2] = 1.0;
+      z2[(4*ix+3) + px*nrows_z2] = -1.0;
+      z2[4*ix + qx*nrows_z2] = 1.0;
+      z2[(4*ix+1) + qx*nrows_z2] = 1.0;
+      z2[(4*ix+2) + qx*nrows_z2] = -1.0;
+      z2[(4*ix+3) + qx*nrows_z2] = -1.0;
       ++ix;
     }
   }
@@ -103,36 +105,47 @@ void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   //==========================================================================
 
   // Cholesky decomposition of the variance-covariance matrix
-  REAL* vcv_chol = new REAL[N*N];
-  cholesky(vcv, N, vcv_chol);
+  int info;
+  if(typeid(realtype) == typeid(singletype)){
+    spotrf("U", &N, (float*)vcv, &N, &info);
+  } else if(typeid(realtype) == typeid(doubletype)){
+    dpotrf("U", &N, (double*)vcv, &N, &info);
+  }
+  for(ix = 1 ; ix < N ; ++ix){
+    for(jx = 0 ; jx < ix ; ++jx){
+      vcv[ix + jx*N] = 0.0;
+    }
+  }
                                  
   // Integration nodes; see condition (B.8) in the Supplement
   // to JMM (2011); n_nodes-by-N
-  REAL z1_alt[2*N*N];
-  REAL z2_alt[2*N*(N-1)*N];
+  REAL z1_alt[nrows_z1*N];
+  REAL z2_alt[nrows_z2*N];
   if(typeid(realtype) == typeid(singletype)){
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, 2*N, N, N,
-		sqrt(N+2), (float*)z1, N, (float*)vcv_chol, N, 0.0,
-		(float*)z1_alt, N);
-    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasTrans, 2*N*(N-1), N, N,
-		sqrt((N+2)/2), (float*)z2, N, (float*)vcv_chol, N, 0.0,
-		(float*)z2_alt, N);
+    float f_alpha1 = sqrt(N+2);
+    float f_alpha2 = sqrt((N+2)/2);
+    float f_beta = 0.0;
+    sgemm("N", "N", &nrows_z1, &N, &N, &f_alpha1, (float*)z1, &nrows_z1,
+	  (float*)vcv, &N, &f_beta, (float*)z1_alt, &nrows_z1);
+    sgemm("N", "N", &nrows_z2, &N, &N, &f_alpha2, (float*)z2, &nrows_z2,
+	  (float*)vcv, &N, &f_beta, (float*)z2_alt, &nrows_z2);
   } else if(typeid(realtype) == typeid(doubletype)){
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, 2*N, N, N,
-		sqrt(N+2), (double*)z1, N, (double*)vcv_chol, N, 0.0,
-		(double*)z1_alt, N);
-    cblas_dgemm(CblasRowMajor, CblasNoTrans, CblasTrans, 2*N*(N-1), N, N,
-		sqrt((N+2)/2), (double*)z2, N, (double*)vcv_chol, N, 0.0, 
-		(double*)z2_alt, N);
+    double d_alpha1 = sqrt(N+2);
+    double d_alpha2 = sqrt((N+2)/2);
+    double d_beta = 0.0;
+    dgemm("N", "N", &nrows_z1, &N, &N, &d_alpha1, (double*)z1, &nrows_z1,
+	  (double*)vcv, &N, &d_beta, (double*)z1_alt, &nrows_z1);
+    dgemm("N", "N", &nrows_z2, &N, &N, &d_alpha2, (double*)z2, &nrows_z2,
+	  (double*)vcv, &N, &d_beta, (double*)z2_alt, &nrows_z2);
   }
   for(ix = 0 ; ix < n_nodes ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
       if(ix == 0){
-	epsi_nodes[ix*N + jx] = z0[jx];
-      } else if(ix >= 1 & ix <= 2*N){
-	epsi_nodes[ix*N + jx] = z1_alt[(ix-1)*N+jx];
+	epsi_nodes[ix + jx*n_nodes] = z0[jx];
+      } else if(ix >= 1 & ix <= nrows_z1){
+	epsi_nodes[ix + jx*n_nodes] = z1_alt[(ix-1)+jx*nrows_z1];
       } else {
-	epsi_nodes[ix*N + jx] = z2_alt[(ix-2*N-1)*N+jx];
+	epsi_nodes[ix + jx*n_nodes] = z2_alt[(ix-2*N-1)+jx*nrows_z2];
       }
     }
   }
@@ -148,7 +161,7 @@ void Monomials_2(int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
   for(ix = 1 ; ix <= 2*N ; ++ix){
     weight_nodes[ix] = (4-N)/(2*pow(N+2,2));
   }
-  for(ix = (2*N+1) ; ix <= n_nodes ; ++ix){
+  for(ix = (2*N+1) ; ix < n_nodes ; ++ix){
     weight_nodes[ix] = 1/pow(N+2,2);
   }
 

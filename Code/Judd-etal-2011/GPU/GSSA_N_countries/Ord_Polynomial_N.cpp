@@ -29,7 +29,7 @@
 
 using namespace std;
 
-REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
+void Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, REAL* basis_fs)
 {
 
   int ix, jx, j1x, j2x, j3x, j4x, j5x;
@@ -38,22 +38,13 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
   // multiplied by the coefficients; see condition (13) in JMM (2011). By 
   // convention, the first basis function is one. 
 
-  // allocate storage for the matrix of basis function
-  int higher_order = 1;
-  for(ix = 1 ; ix <= D ; ++ix){
-    higher_order *= (dimen+ix);
-    higher_order /= ix;
-  }
-  n_cols = higher_order;
-  REAL* basis_fs = new REAL[n_rows*n_cols];
-
   //==========================================================================
   // The matrix of the basis functions - 1st degree
   //==========================================================================
   for(ix = 0 ; ix < n_rows ; ++ix){
-    basis_fs[ix*n_cols] = 1.0;
+    basis_fs[ix] = 1.0;
     for(jx = 1 ; jx < (dimen+1) ; ++jx){
-      basis_fs[ix*n_cols + jx] = z[ix*dimen + jx - 1];
+      basis_fs[ix + jx*n_rows] = z[ix + (jx-1)*n_rows];
     }
 
     //========================================================================
@@ -63,7 +54,7 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
     if(D == 2){
       for(j1x = 0 ; j1x < dimen ; ++j1x){
 	for(j2x = j1x ; j2x < dimen ; ++j2x){
-	  basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x];
+	  basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows];
 	  ++jx;
 	}
       }
@@ -75,10 +66,10 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
     } else if(D == 3){
       for(j1x = 0 ; j1x < dimen ; ++j1x){
 	for(j2x = j1x ; j2x < dimen ; ++j2x){
-	  basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x];
+	  basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows];
 	  ++jx;
 	  for(j3x = j2x ; j3x < dimen ; ++j3x){
-	    basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x]*z[ix*dimen + j3x];
+	    basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows]*z[ix + j3x*n_rows];
 	    ++jx;
 	  }
 	}
@@ -91,13 +82,13 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
     } else if(D == 4){
       for(j1x = 0 ; j1x < dimen ; ++j1x){
 	for(j2x = j1x ; j2x < dimen ; ++j2x){
-	  basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x];
+	  basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows];
 	  ++jx;
 	  for(j3x = j2x ; j3x < dimen ; ++j3x){
-	    basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x]*z[ix*dimen + j3x];
+	    basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows]*z[ix + j3x*n_rows];
 	    ++jx;
 	    for(j4x = j3x ; j4x < dimen ; ++j4x){
-	      basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x]*z[ix*dimen + j3x]*z[ix*dimen + j4x];
+	      basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows]*z[ix + j3x*n_rows]*z[ix + j4x*n_rows];
 	      ++jx;
 	    }
 	  }
@@ -111,16 +102,16 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
     } else if(D == 5){
       for(j1x = 0 ; j1x < dimen ; ++j1x){
 	for(j2x = j1x ; j2x < dimen ; ++j2x){
-	  basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x];
+	  basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows];
 	  ++jx;
 	  for(j3x = j2x ; j3x < dimen ; ++j3x){
-	    basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x]*z[ix*dimen + j3x];
+	    basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows]*z[ix + j3x*n_rows];
 	    ++jx;
 	    for(j4x = j3x ; j4x < dimen ; ++j4x){
-	      basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x]*z[ix*dimen + j3x]*z[ix*dimen + j4x];
+	      basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows]*z[ix + j3x*n_rows]*z[ix + j4x*n_rows];
 	      ++jx;
 	      for(j5x = j4x ; j5x < dimen ; ++j5x){
-		basis_fs[ix*n_cols + jx] = z[ix*dimen + j1x]*z[ix*dimen + j2x]*z[ix*dimen + j3x]*z[ix*dimen + j4x]*z[ix*dimen + j5x];
+		basis_fs[ix + jx*n_rows] = z[ix + j1x*n_rows]*z[ix + j2x*n_rows]*z[ix + j3x*n_rows]*z[ix + j4x*n_rows]*z[ix + j5x*n_rows];
 		++jx;
 	      }
 	    }
@@ -129,5 +120,4 @@ REAL* Ord_Polynomial_N(REAL* z, int n_rows, int dimen, int D, int& n_cols)
       }
     }
   }
-  return basis_fs;
 }

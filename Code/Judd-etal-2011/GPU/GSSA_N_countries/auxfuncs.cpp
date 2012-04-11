@@ -35,20 +35,18 @@ REAL norm(REAL* x, const int N)
   return norm;
 }
 
-void matrix_normalize(const int M, const int N, REAL* X, REAL* X_norm,
-		      REAL* X_means, REAL* X_sds)
+void matrix_normalize(const int M, const int N, REAL* X, const int ldx,
+		      REAL* X_norm, REAL* X_means, REAL* X_sds)
 {
 
   // M-by-N matrix stored in flat array, row-major format
   // normalize value with column mean and standard deviation
   int ix, jx;
-  REAL col_temp[M]; // temporary storage for each column
   for(jx = 0 ; jx < N ; ++jx){
-    for(ix = 0 ; ix < M ; ++ix) col_temp[ix] = X[ix*N + jx];
-    X_means[jx] = mean(col_temp, M);
-    X_sds[jx] = sd(col_temp, M);
+    X_means[jx] = mean(X+jx*ldx, M);
+    X_sds[jx] = sd(X+jx*ldx, M);
     for(ix = 0 ; ix < M ; ++ix){
-      X_norm[ix*N + jx] = (X[ix*N + jx] - X_means[jx])/X_sds[jx];
+      X_norm[ix + jx*ldx] = (X[ix + jx*ldx] - X_means[jx])/X_sds[jx];
     }
   }
 }
@@ -60,7 +58,7 @@ void print_matrix(const int M, const int N, REAL* X,
   cout.precision(5);
   for(int ix = 0 ; ix < printrows ; ++ix){
     for(int jx = 0 ; jx < printcols ; ++jx){
-      cout << setw(10) << X[ix*N+jx] << " ";
+      cout << setw(10) << X[ix+jx*M] << " ";
     }
     cout << endl;
   }
