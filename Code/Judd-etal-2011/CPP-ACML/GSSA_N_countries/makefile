@@ -1,11 +1,6 @@
 # common
 SDIR     = .
 
-# Eric's Machine
-#CPP = g++
-#LDFLAGS   = -lm -framework Accelerate
-#CPPFLAGS = -O2 -c -I$(SDIR)
-
 # Keeneland with the following modules:
 #Currently Loaded Modulefiles:
 #  1) modules             3) moab/6.1.5          5) cuda/4.1            7) subversion/1.6.15   9) gcc/4.4.0
@@ -13,10 +8,8 @@ SDIR     = .
 CPP    = g++
 ACML_INC_PATH=/sw/keeneland/acml/4.4.0/linux_binary/gfortran64/include
 ACML_LIB_PATH=/sw/keeneland/acml/4.4.0/linux_binary/gfortran64/lib
-LDFLAGS   = -L$(ACML_LIB_PATH) -lm -lacml -lacml_mv
-#LDFLAGS   = -L$(ACML_LIB_PATH) -lm -lmkl_intel_lp64 -lmkl_sequential -lmkl_core
+LDFLAGS   = -L$(ACML_LIB_PATH) -lm -lacml
 CPPFLAGS = -O1 -g -c -I$(ACML_INC_PATH) -I$(SDIR)
-
 OBJECTS  = Timer.cpp Productivity.o GH_Quadrature.o Monomials_1.o Monomials_2.o Ord_Polynomial_N.o Num_Stab_Approx.o Accuracy_Test_N.o auxfuncs.o
 
 Main_GSSA_N :	Main_GSSA_N.o $(OBJECTS)

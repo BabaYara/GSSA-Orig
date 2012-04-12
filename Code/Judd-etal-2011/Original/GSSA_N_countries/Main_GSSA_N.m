@@ -146,6 +146,7 @@ k_old = ones(T+1,N);   % Initialize the series of next-period capital of N
                        
 % 9. The main iterative cycle of GSSA
 % -----------------------------------              
+count = 0;
 while dif_1d > 1e-4*kdamp;        % 10^4*kdamp is a convergence parameter,
                                   % adjusted to the damping parameter; see 
                                   % JMM (2011) for a discussion
@@ -194,6 +195,7 @@ bk_1d = kdamp*bk_hat_1d + (1-kdamp)*bk_1d;
 %-----------------------------
 k_old = k;         % The stored capital series will be used for checking 
                    % the convergence on the subsequent iteration
+count=count+1;
 end;
 
 % 10. Time needed to compute the initial guess 
@@ -222,7 +224,7 @@ dif_GSSA_D  = 1e+10;  % Set the initial difference between the series from
 
 % 12. The matrix of the polynomial coefficients
 % ---------------------------------------------                             
-D_max  = 5;           % Maximum degree of a polynomial: the program computes
+D_max  = 3;           % Maximum degree of a polynomial: the program computes
                       % polynomial solutions of the degrees from one to D_max;
                       % (D_max can be from 1 to 5) 
 for D = 1:D_max         % For the polynomial degrees from one to D_max
@@ -239,7 +241,7 @@ BK = zeros(npol(D_max),N,D_max); % Matrix of polynomial coefficients of the
                                  
 % 13. Choose an integration method 
 % --------------------------------                             
-IM    = 11;      % 0=a one-node Monte Carlo method(default);
+IM    = 12;      % 0=a one-node Monte Carlo method(default);
                  % 1,2,..,10=Gauss-Hermite quadrature rules with 1,2,...,10 
                  % nodes in each dimension, respectively;
                  % 11=Monomial rule with 2N nodes;
@@ -267,12 +269,12 @@ end
 
 % 14. Choose a regression method 
 % ------------------------------                             
-RM    = 6;       % Choose a regression method: 
+RM    = 5;       % Choose a regression method: 
                  % 1=OLS,          2=LS-SVD,   3=LAD-PP,  4=LAD-DP, 
                  % 5=RLS-Tikhonov, 6=RLS-TSVD, 7=RLAD-PP, 8=RLAD-DP
 normalize = 1;   % Option of normalizing the data; 0=unnormalized data; 
                  % 1=normalized data                    
-penalty = 7;     % Degree of regularization for a regularization methods, 
+penalty = -7;     % Degree of regularization for a regularization methods, 
                  % RM=5,6,7,8 (must be negative, e.g., -7 for RM=5,7,8 
                  % and must be positive, e.g., 7, for RM=6)
 
