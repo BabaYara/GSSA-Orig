@@ -61,6 +61,11 @@
 #include <ctime>
 #include <typeinfo>
 #include <vector>
+#include "BasicFunctors.hpp"
+#include <thrust/host_vector.h>
+#include <thrust/device_vector.h>
+#include <thrust/transform.h>
+#include <thrust/copy.h>
 
 using namespace std;
 
@@ -131,8 +136,10 @@ int main()
   //==========================================================================
 
   // Initial conditions for capital and productivity (equal to steady state)
-  vector<REAL> k(Tplus1*N);
-  vector<REAL> a(T*N);
+  thrust::host_vector<REAL> k(Tplus1*N);
+  thrust::device_vector<REAL> dk(Tplus1*N);
+  thrust::host_vector<REAL> a(T*N);
+  thrust::device_vector<REAL> da(T*N);
   for(jx = 0 ; jx < N ; ++jx){
     k[jx*(T+1)] = 1;
     a[jx*T] = 1;
@@ -250,7 +257,8 @@ int main()
   // Initialize the series of next-period capital of N countries; these
   // series are used to check the convergence on the subsequent iteration
   // (initially, capital can take any value); (T+1)-by-N
-  vector<REAL> k_old(Tplus1*N);
+  thrust::host_vector<REAL> k_old(Tplus1*N);
+  thrust::device_vector<REAL> dk_old(Tplus1*N);
   for(ix = 0 ; ix < (T+1) ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
       k_old[ix + jx*(T+1)] = 1.0;
@@ -265,9 +273,11 @@ int main()
   vector<REAL> x(T*nStates);   // storage for basis functions
   vector<REAL> C(T);           // storage for aggregate consumption
   vector<REAL> c(T*N);         // storage for individual consumption
-  vector<REAL> Y(Tminus1*N);     // storage for income
+  thrust::host_vector<REAL> Y(Tminus1*N);     // storage for income
+  thrust::device_vector<REAL> dY(Tminus1*N);     // storage for income
   vector<REAL> Y_copy(Tminus1*N);     // storage for income
-  vector<REAL> a1(T*N), k2(T*N), c1(T*N);  // variables for euler equation errors
+  thrust::host_vector<REAL> a1(T*N), k2(T*N), c1(T*N);  // variables for euler equation errors
+  thrust::device_vector<REAL> da1(T*N), dk2(T*N), dc1(T*N);  // variables for euler equation errors
   
   // storage for linear regression variables (including SVD variables)
   int count = 0;
@@ -528,14 +538,15 @@ int main()
   // Admin
   int n_cols, D;
   vector<REAL> poly_X; poly_X.reserve(T*npol[D_max-1]);
-  vector<REAL> poly_X_integral; poly_X_integral.reserve(T*npol[D_max-1]);
+  thrust::host_vector<REAL> poly_X_integral; poly_X_integral.reserve(T*npol[D_max-1]);
   vector<REAL> poly_X_row; poly_X_row.reserve(npol[D_max-1]);
   vector<REAL> bk_D; bk_D.reserve(npol[D_max-1]*N);
   vector<REAL> bk_hat_D; bk_hat_D.reserve(npol[D_max-1]*N);
   vector<REAL> time_GSSA(D_max);
 
   // Matrix which holds data for polynomial bases - begin with only shocks
-  vector<REAL> X1(T*2*N), X1_integral(T*2*N);
+  thrust::host_vector<REAL> X1(T*2*N), X1_integral(T*2*N);
+  thrust::host_vector<REAL> dX1(T*2*N), dX1_integral(T*2*N);
   for(ix = 0 ; ix < T ; ++ix){
     for(jx = N ; jx < 2*N ; ++jx){
       X1[ix + jx*T] = a[ix + (jx-N)*T];
@@ -687,17 +698,10 @@ int main()
 
 	// Compute Euler Equation Errors via integration
 	for(hx = 0 ; hx < n_nodes ; ++hx){
-	  for(ix = 0 ; ix < T ; ++ix){
-	    for(jx = 0 ; jx < N ; ++jx){
-
-	      // Compute the next-period productivity levels for each integration       
-	      // node using condition (C3) in the online Appendix C; n_nodes-by-N
-	      a1[ix+jx*T] = pow(a[ix+jx*T],rho)*exp(epsi_nodes[hx+jx*n_nodes]);
-
-	      // The basis functions of a polynomial of degree D at time t	
-	      X1_integral[ix + jx*T] = k[(ix+1) + jx*Tplus1];
-	      X1_integral[ix + (jx+N)*T] = a1[ix + jx*T];
-	    }
+	  for(jx = 0 ; jx < N ; ++jx){
+	    thrust::transform(a.begin()+jx*T, a.begin()+(jx+1)*T, a1.begin()+jx*T, productivity_functor<REAL>(rho, epsi_nodes[hx+jx*n_nodes]));
+	    thrust::copy(k.begin()+jx*Tplus1+1, k.begin()+(jx+1)*Tplus1, X1_integral.begin()+jx*T);
+	    thrust::copy(a1.begin()+jx*T, a1.begin()+(jx+1)*T, X1_integral.begin()+(jx+N)*T);
 	  }
 
 	  // Polynomial bases
