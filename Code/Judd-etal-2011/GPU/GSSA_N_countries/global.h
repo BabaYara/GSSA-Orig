@@ -2,8 +2,9 @@
 #define __FILE_GLOBAL_H_SEEN__
 
 #include "mkl.h"
+#include "cublas.h"
 #include "magma.h"
-#include "magma_lapack.h"
+//#include "magma_lapack.h"
 
 typedef double REAL;
 typedef unsigned long int Ullong;

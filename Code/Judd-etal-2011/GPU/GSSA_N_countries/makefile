@@ -10,20 +10,24 @@ IMKL = /opt/intel/composer_xe_2011_sp1.8.273/mkl/include
 LMKL = /opt/intel/composer_xe_2011_sp1.8.273/mkl/lib/intel64
 
 # Add MAMGA Paths
-IMAGMA = /sw/keeneland/magam/1.1/centos5.5_gnu4.4/magma_1.1.0/include
-LMAGMA = /sw/keeneland/magam/1.1/centos5.5_gnu4.4/magma_1.1.0/lib
+IMAGMA = /sw/keeneland/magma/1.1/centos5.5_gnu4.4/magma_1.1.0/include
+LMAGMA = /sw/keeneland/magma/1.1/centos5.5_gnu4.4/magma_1.1.0/lib
+
+# Add CUDA Paths
+ICUDA = /sw/keeneland/cuda/4.1/linux_binary/include
+LCUDA = /sw/keeneland/cuda/4.1/linux_binary/lib64
 
 # Add MKL to the link line
 LFLAGS = -L$(LMKL) -lm -lpthread -openmp -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5
 
 # Add CUDA libraries to the link line
-LFLAGS += -lcuda -lcudart -L/sw/keeneland/cuda/4.1/linux_binary/lib64
+LFLAGS += -lcuda -lcudart -lcublas -L$(LCUDA)
 
 # Add MAGMA libraries to the link line
 LFLAGS += -L$(LMAGMA) -lmagma -lmagmablas
 
 # Include standard optimization flags and MKL headers
-CPPFLAGS = -O1 -g -c -I$(IMKL) -I$(IMAGMA)
+CPPFLAGS = -O1 -g -c -I$(IMKL) -I$(IMAGMA) -I$(ICUDA)
 
 # List of all the objects you need
 OBJECTS  = Timer.o Productivity.o GH_Quadrature.o Monomials_1.o Monomials_2.o Ord_Polynomial_N.o Num_Stab_Approx.o Accuracy_Test_N.o auxfuncs.o
