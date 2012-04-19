@@ -740,18 +740,9 @@ int main()
 	  // another 'T' iterator. A zip iterator with single arguments of type
 	  // 'T', however, would modify the array values. In a nutshell, the
 	  // behavior is very strange when passing pointers.
-	  //for(jx = 0 ; jx < N ; ++jx){
-	    thrust::for_each(
-			     // Starting tuple
-			     thrust::make_zip_iterator(           
-						       thrust::make_tuple(zero_iter, dummy.begin())),
-			     // Ending tuple (note all vectors should be same length)
-			     thrust::make_zip_iterator(
-						       thrust::make_tuple(zero_iter+T, dummy.begin()+T)),
-			     // Functor to apply
-			     Ord_Polynomial_N_functor<REAL>(T, 2*N, D, thrust::raw_pointer_cast(&dX1_integral[0]),
-							    thrust::raw_pointer_cast(&dpoly_X_integral[0])));
-	    //}
+	  thrust::for_each(zero_iter, zero_iter+T,
+			   Ord_Polynomial_N_functor<REAL>(T, 2*N, D, thrust::raw_pointer_cast(&dX1_integral[0]),
+							  thrust::raw_pointer_cast(&dpoly_X_integral[0])));
 
 	  // Compute capital of period t+2 (chosen at t+1) using the
 	  // capital policy functions; n_nodes-by-N 

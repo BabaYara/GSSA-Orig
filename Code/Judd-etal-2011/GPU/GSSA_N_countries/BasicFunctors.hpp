@@ -131,14 +131,9 @@ struct Ord_Polynomial_N_functor
   Ord_Polynomial_N_functor(int _n_rows, int _dimen, int _D, T* _z, T* _basis_fs)
     : n_rows(_n_rows), dimen(_dimen), D(_D), z(_z), basis_fs(_basis_fs) {}
 
-  template <typename Tuple>
   __host__ __device__
-  void operator()(Tuple t)
+  void operator()(const int& ix)
   { 
-    // For this the zip order is:
-    // 0: row index (ix)
-    // 1: k
-    int ix = thrust::get<0>(t);
 
     int jx, j1x, j2x, j3x, j4x, j5x;
 
