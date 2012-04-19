@@ -273,7 +273,9 @@ int main()
   // auxiliary variables and storage
   vector<REAL> x(T*nStates);   // storage for basis functions
   vector<REAL> C(T);           // storage for aggregate consumption
+  thrust::device_vector<REAL> dC(T);
   vector<REAL> c(T*N);         // storage for individual consumption
+  thrust::device_vector<REAL> dc(T*N);
   thrust::host_vector<REAL> Y(Tminus1*N);     // storage for income
   thrust::device_vector<REAL> dY(Tminus1*N);     // storage for income
   vector<REAL> Y_copy(Tminus1*N);     // storage for income
@@ -545,9 +547,9 @@ int main()
   thrust::host_vector<REAL> bk_D(npol[D_max-1]*N);
   thrust::device_vector<REAL> dbk_D(npol[D_max-1]*N);
   vector<REAL> bk_hat_D; bk_hat_D.reserve(npol[D_max-1]*N);
-  vector<REAL> time_GSSA(D_max);
-  thrust::counting_iterator<int> zero_iter(0);
+  vector<REAL> time_GSSA(D_max);  thrust::counting_iterator<int> zero_iter(0);
   thrust::counting_iterator<int> alt_zero_iter(0);
+  thrust::device_vector<REAL> dummy(T);
 
   // Matrix which holds data for polynomial bases - begin with only shocks
   thrust::host_vector<REAL> X1(T*2*N), X1_integral(T*2*N);
@@ -708,20 +710,29 @@ int main()
       //======================================================================
       else{
 
+	dY = Y;
+	da = a;
+	dk = k;
+	dbk_D = bk_D;
+	dc = c;
+
+	// Resize storage for polynomial basis (depends on D)
+	//poly_X_integral.resize(T*n_cols);
+
 	// Initialize variable Y
-	thrust::fill(Y.begin(), Y.begin()+Tminus1*N, 0.0);
+	thrust::fill(dY.begin(), dY.begin()+Tminus1*N, 0.0);
 
 	// Compute Euler Equation Errors via integration
 	for(hx = 0 ; hx < n_nodes ; ++hx){
 	  for(jx = 0 ; jx < N ; ++jx){
-	    thrust::transform(a.begin()+jx*T, a.begin()+(jx+1)*T, a1.begin()+jx*T, productivity_functor<REAL>(rho, epsi_nodes[hx+jx*n_nodes]));
-	    thrust::copy(k.begin()+jx*Tplus1+1, k.begin()+(jx+1)*Tplus1, X1_integral.begin()+jx*T);
-	    thrust::copy(a1.begin()+jx*T, a1.begin()+(jx+1)*T, X1_integral.begin()+(jx+N)*T);
+	    thrust::transform(da.begin()+jx*T, da.begin()+(jx+1)*T, da1.begin()+jx*T, productivity_functor<REAL>(rho, epsi_nodes[hx+jx*n_nodes]));
+	    thrust::copy(dk.begin()+jx*Tplus1+1, dk.begin()+(jx+1)*Tplus1, dX1_integral.begin()+jx*T);
+	    thrust::copy(da1.begin()+jx*T, da1.begin()+(jx+1)*T, dX1_integral.begin()+(jx+N)*T);
 	  }
 
 	  // Polynomial bases
 	  // The thrust construct below is a bit whacked - I would have liked
-	  // to simply use 'thrust::transform' with on a counting iterator,
+	  // to simply use 'thrust::transform' on a counting iterator,
 	  // but that expression won't modify the values of an array (passed
 	  // as a pointer to the parameter list) outside of the functor scope.
 	  // Also, the zip iterator wouldn't modify the array values outside
@@ -729,33 +740,28 @@ int main()
 	  // another 'T' iterator. A zip iterator with single arguments of type
 	  // 'T', however, would modify the array values. In a nutshell, the
 	  // behavior is very strange when passing pointers.
-	  poly_X_integral.resize(T*n_cols);
-	  for(jx = 0 ; jx < N ; ++jx){
+	  //for(jx = 0 ; jx < N ; ++jx){
 	    thrust::for_each(
 			     // Starting tuple
 			     thrust::make_zip_iterator(           
-						       thrust::make_tuple(zero_iter, k.begin())),
+						       thrust::make_tuple(zero_iter, dummy.begin())),
 			     // Ending tuple (note all vectors should be same length)
 			     thrust::make_zip_iterator(
-						       thrust::make_tuple(zero_iter+T, k.begin()+T)),
+						       thrust::make_tuple(zero_iter+T, dummy.begin()+T)),
 			     // Functor to apply
-			     Ord_Polynomial_N_functor<REAL>(T, 2*N, D, &X1_integral[0], &poly_X_integral[0]));
-	  }
+			     Ord_Polynomial_N_functor<REAL>(T, 2*N, D, thrust::raw_pointer_cast(&dX1_integral[0]),
+							    thrust::raw_pointer_cast(&dpoly_X_integral[0])));
+	    //}
 
 	  // Compute capital of period t+2 (chosen at t+1) using the
 	  // capital policy functions; n_nodes-by-N 
-	  if(typeid(realtype) == typeid(singletype)){
+	  /*if(typeid(realtype) == typeid(singletype)){
 	    sgemm("N", "N", &T, &N, &n_cols, &f_alpha, (float*)&poly_X_integral[0],
 		  &T, (float*)&bk_D[0], &n_cols, &f_beta, (float*)&k2[0], &T);
 	  } else if(typeid(realtype) == typeid(doubletype)){
 	    dgemm("N", "N", &T, &N, &n_cols, &d_alpha, (double*)&poly_X_integral[0],
 		  &T, (double*)&bk_D[0], &n_cols, &d_beta, (double*)&k2[0], &T);
-	  }
-
-	  //magmablas_dgemm(MagmaNoTrans, MagmaNoTrans, T, N, n_cols, d_alpha,
-	  //	  thrust::raw_pointer_cast(&dpoly_X_integral[0]), T,
-	  //	  thrust::raw_pointer_cast(&dbk_D[0]), n_cols, d_beta,
-	  //	  thrust::raw_pointer_cast(&dk2[0]), T);
+		  }*/
 
 	  cublasDgemm(MagmaNoTrans, MagmaNoTrans, T, N, n_cols, d_alpha,
 		      thrust::raw_pointer_cast(&dpoly_X_integral[0]), T,
@@ -768,25 +774,25 @@ int main()
 	    thrust::for_each(
 			     // Starting tuple
 			     thrust::make_zip_iterator(           
-						       thrust::make_tuple(k.begin()+jx*Tplus1+1,
-									  a1.begin()+jx*T, 
-									  k2.begin()+jx*T,
-									  c1.begin()+jx*T)),
+						       thrust::make_tuple(dk.begin()+jx*Tplus1+1,
+									  da1.begin()+jx*T, 
+									  dk2.begin()+jx*T,
+									  dc1.begin()+jx*T)),
 			     // Ending tuple (note all vectors should be same length)
 			     thrust::make_zip_iterator(
-						       thrust::make_tuple(k.begin()+(jx+1)*Tplus1,
-									  a1.begin()+(jx+1)*T,
-									  k2.begin()+(jx+1)*T,
-									  c1.begin()+(jx+1)*T)),
+						       thrust::make_tuple(dk.begin()+(jx+1)*Tplus1,
+									  da1.begin()+(jx+1)*T,
+									  dk2.begin()+(jx+1)*T,
+									  dc1.begin()+(jx+1)*T)),
 			     // Functor to apply
 			     consumption_functor<REAL>(A, alpha, delta));
 	  }
-	  thrust::transform(zero_iter, zero_iter+T, C.begin(), agg_consumption_functor<REAL>(T,N,&c1[0]));
+	  thrust::transform(zero_iter, zero_iter+T, dC.begin(), agg_consumption_functor<REAL>(T,N,thrust::raw_pointer_cast(&dc1[0])));
 
 	  // Compute next-period consumption for N countries; n_nodes-by-N
 	  for(ix = 0 ; ix < T ; ++ix){
 	    for(jx = 0 ; jx < N ; ++jx){
-	      c1[ix + jx*T] = C[ix]/N;
+	      dc1[ix + jx*T] = dC[ix]/N;
 	    }
 	  }
 
@@ -795,24 +801,25 @@ int main()
 	    thrust::for_each(
 			     // Starting tuple
 			     thrust::make_zip_iterator(           
-						       thrust::make_tuple(k.begin()+jx*Tplus1+1,
-									  a1.begin()+jx*T, 
-									  c.begin()+jx*T,
-									  c1.begin()+jx*T,
-									  Y.begin()+jx*Tminus1)),
+						       thrust::make_tuple(dk.begin()+jx*Tplus1+1,
+									  da1.begin()+jx*T, 
+									  dc.begin()+jx*T,
+									  dc1.begin()+jx*T,
+									  dY.begin()+jx*Tminus1)),
 			     // Ending tuple (note all vectors should be same length)
 			     thrust::make_zip_iterator(
-						       thrust::make_tuple(k.begin()+(jx+1)*Tplus1-1,
-									  a1.begin()+(jx+1)*T-1,
-									  c.begin()+(jx+1)*T-1,
-									  c1.begin()+(jx+1)*T-1,
-									  Y.begin()+(jx+1)*Tminus1)),
+						       thrust::make_tuple(dk.begin()+(jx+1)*Tplus1-1,
+									  da1.begin()+(jx+1)*T-1,
+									  dc.begin()+(jx+1)*T-1,
+									  dc1.begin()+(jx+1)*T-1,
+									  dY.begin()+(jx+1)*Tminus1)),
 			     // Functor to apply
 			     euler_functor<REAL>(A, alpha, beta, delta, gam, weight_nodes[hx]));
 	  }
 	
 	  
 	}
+	Y = dY;
       }
 
       //======================================================================
