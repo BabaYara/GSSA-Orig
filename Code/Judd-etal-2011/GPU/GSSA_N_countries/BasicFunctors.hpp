@@ -133,7 +133,7 @@ struct Ord_Polynomial_N_functor
 
   __host__ __device__
   void operator()(const int& ix)
-  { 
+  {
 
     int jx, j1x, j2x, j3x, j4x, j5x;
 
@@ -148,7 +148,7 @@ struct Ord_Polynomial_N_functor
     for(jx = 1 ; jx < (dimen+1) ; ++jx){
       basis_fs[ix + jx*n_rows] = z[ix + (jx-1)*n_rows];
     }
-    
+
     //========================================================================
     // 2. Second-degree columns
     //========================================================================
@@ -221,6 +221,7 @@ struct Ord_Polynomial_N_functor
 	}
       }
     }
+    //printf("The value of basis_fs[%d] = %f\n", ix, basis_fs[ix]);
   }
 };
 
