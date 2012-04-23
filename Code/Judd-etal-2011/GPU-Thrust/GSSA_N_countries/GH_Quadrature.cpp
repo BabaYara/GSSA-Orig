@@ -1,0 +1,248 @@
+// GH_Quadrature.m is a routine that constructs integration nodes and weights   
+// under Gauss-Hermite quadrature (product) integration rule with Qn<=10  
+// nodes in each of N dimensions; see the Supplement to "Numerically Stable  
+// and Accurate Stochastic Simulation Approaches for Solving Dynamic Economic 
+// Models" by Kenneth L. Judd, Lilia Maliar and Serguei Maliar, (2011),  
+// Quantitative Economics 2/2, 173-210 (henceforth, JMM, 2011). This is a 
+// translation of the original Matlab code provided by Lilia Maliar and
+// Serguei Maliar.
+//
+// This version: 28 March 2012.
+// -------------------------------------------------------------------------
+// Inputs:  "Qn" is the number of nodes in each dimension; 1<=Qn<=10;
+//          "N" is the number of random variables; N=1,2,...;
+//          "vcv" is the variance-covariance matrix; N-by-N
+
+// Outputs: "n_nodes" is the total number of integration nodes; Qn^N;
+//          "epsi_nodes" are the integration nodes; n_nodes-by-N;
+//          "weight_nodes" are the integration weights; n_nodes-by-1
+// -------------------------------------------------------------------------
+// Copyright © 2012 by Eric M. Aldrich. All rights reserved. The code may
+// be used, modified and redistributed under the terms provided in the
+// file "License_Agreement.txt".
+// -------------------------------------------------------------------------
+
+#include "global.h"
+#include <math.h>
+#include <typeinfo>
+#include <iostream>
+
+using namespace std;
+
+void GH_Quadrature(int Qn, int N, REAL* vcv, int n_nodes, REAL* epsi_nodes,
+		   REAL* weight_nodes)
+{
+
+  int ix, jx, kx, lx;
+  const REAL pi = 3.14159265358979323846;
+
+  //==========================================================================
+  // 1. One-dimensional integration nodes and weights (given with 16-digit
+  // accuracy) under Gauss-Hermite quadrature for a normally distributed
+  // random variable with zero mean and unit variance
+  //==========================================================================
+
+  REAL eps[Qn];
+  REAL weight[Qn];
+
+  if(Qn == 1){
+    eps[0] = 0.0;
+    weight[0] = sqrt(pi);
+  } else if(Qn == 2){            
+    eps[0] = 0.7071067811865475;
+    eps[1] = -0.7071067811865475; 
+    weight[0] = 0.8862269254527580;
+    weight[1] = 0.8862269254527580;
+  } else if(Qn == 3){
+    eps[0] = 1.224744871391589;
+    eps[1] = 0.0;
+    eps[2] = -1.224744871391589;
+    weight[0] = 0.2954089751509193;
+    weight[1] = 1.181635900603677;
+    weight[2] = 0.2954089751509193;
+  } else if(Qn == 4){
+    eps[0] = 1.650680123885785;
+    eps[1] = 0.5246476232752903;
+    eps[2] = -0.5246476232752903;
+    eps[3] -1.650680123885785;
+    weight[0] = 0.08131283544724518;
+    weight[1] = 0.8049140900055128;
+    weight[2] = 0.8049140900055128; 
+    weight[3] = 0.08131283544724518;
+  } else if(Qn == 5){
+    eps[0] = 2.020182870456086;
+    eps[1] = 0.9585724646138185;
+    eps[2] = 0.0;
+    eps[3] = -0.9585724646138185;
+    eps[4] = -2.020182870456086;
+    weight[0] = 0.01995324205904591;
+    weight[1] = 0.3936193231522412;
+    weight[2] = 0.9453087204829419;
+    weight[3] = 0.3936193231522412;
+    weight[4] = 0.01995324205904591;
+  } else if(Qn == 6){
+    eps[0] = 2.350604973674492;
+    eps[1] = 1.335849074013697;
+    eps[2] = 0.4360774119276165;
+    eps[3] = -0.4360774119276165;
+    eps[4] = -1.335849074013697;
+    eps[5] = -2.350604973674492;
+    weight[0] = 0.004530009905508846;
+    weight[1] = 0.1570673203228566;
+    weight[2] = 0.7246295952243925;
+    weight[3] = 0.7246295952243925;
+    weight[4] = 0.1570673203228566;
+    weight[5] = 0.004530009905508846;
+  } else if(Qn == 7){
+    eps[0] = 2.651961356835233;
+    eps[1] = 1.673551628767471;
+    eps[2] = 0.8162878828589647;
+    eps[3] = 0.0;
+    eps[4] = -0.8162878828589647;
+    eps[5] = -1.673551628767471;
+    eps[6] = -2.651961356835233;
+    weight[0] = 0.0009717812450995192;
+    weight[1] = 0.05451558281912703;
+    weight[2] = 0.4256072526101278;
+    weight[3] = 0.8102646175568073;
+    weight[4] = 0.4256072526101278;
+    weight[5] = 0.05451558281912703;
+    weight[6] = 0.0009717812450995192;
+  } else if(Qn == 8){
+    eps[0] = 2.930637420257244;
+    eps[1] = 1.981656756695843;
+    eps[2] = 1.157193712446780;
+    eps[3] = 0.3811869902073221;
+    eps[4] = -0.3811869902073221;
+    eps[5] = -1.157193712446780;
+    eps[6] = -1.981656756695843;
+    eps[7] = -2.930637420257244;
+    weight[0] = 0.0001996040722113676;
+    weight[1] = 0.01707798300741348;
+    weight[2] = 0.2078023258148919;
+    weight[3] = 0.6611470125582413;
+    weight[4] = 0.6611470125582413;
+    weight[5] = 0.2078023258148919;
+    weight[6] = 0.01707798300741348;
+    weight[7] = 0.0001996040722113676;
+  } else if(Qn == 9){
+    eps[0] = 3.190993201781528;
+    eps[1] = 2.266580584531843;
+    eps[2] = 1.468553289216668;
+    eps[3] = 0.7235510187528376;
+    eps[4] = 0.0;
+    eps[5] = -0.7235510187528376;
+    eps[6] = -1.468553289216668;
+    eps[7] = -2.266580584531843;
+    eps[8] = -3.190993201781528;
+    weight[0] = 0.00003960697726326438;
+    weight[1] = 0.004943624275536947;
+    weight[2] = 0.08847452739437657;
+    weight[3] = 0.4326515590025558;
+    weight[4] = 0.7202352156060510;
+    weight[5] = 0.4326515590025558;
+    weight[6] = 0.08847452739437657;
+    weight[7] = 0.004943624275536947;
+    weight[8] = 0.00003960697726326438;
+  } else {
+    Qn = 10; // The default option
+    eps[0] = 3.436159118837738;
+    eps[1] = 2.532731674232790;
+    eps[2] = 1.756683649299882;
+    eps[3] = 1.036610829789514;
+    eps[4] = 0.3429013272237046;
+    eps[5] = -0.3429013272237046;
+    eps[6] = -1.036610829789514;
+    eps[7] = -1.756683649299882;
+    eps[8] = -2.532731674232790;
+    eps[9] = -3.436159118837738;
+    weight[0] = 7.640432855232621e-06;
+    weight[1] = 0.001343645746781233;
+    weight[2] = 0.03387439445548106;
+    weight[3] = 0.2401386110823147;
+    weight[4] = 0.6108626337353258;
+    weight[5] = 0.6108626337353258;
+    weight[6] = 0.2401386110823147;
+    weight[7] = 0.03387439445548106;
+    weight[8] = 0.001343645746781233;
+    weight[9] = 7.640432855232621e-06;
+  }
+
+  //==========================================================================
+  // 2. N-dimensional integration nodes and weights for N uncorrelated
+  // normally distributed random variables with zero mean and unit variance
+  //==========================================================================
+
+  // A supplementary matrix for integration nodes; n_nodes-by-N
+  REAL z1[n_nodes*N];
+
+  // A supplementary matrix for integration weights; n_nodes-by-1
+  REAL w1[n_nodes];
+  for(ix = 0 ; ix < n_nodes ; ++ix){
+    w1[ix] = 1.0;
+  }
+
+  // compute the values
+  for(ix = 0 ; ix < N ; ++ix){
+    for(jx = 0 ; jx < pow(Qn, N-ix-1) ; ++jx){
+      for(kx = 0 ; kx < Qn ; ++kx){
+	for(lx = 0 ; lx < pow(Qn, ix) ; ++lx){
+	  z1[jx*Qn*(int)pow(Qn,ix) + kx*(int)pow(Qn,ix) + lx + ix*n_nodes] = eps[kx];
+	  w1[jx*Qn*(int)pow(Qn,ix) + kx*(int)pow(Qn,ix) + lx] *= weight[kx];
+	}
+      }
+    }
+  }
+
+  // normalize
+  REAL z[n_nodes*N];
+  for(ix = 0 ; ix < n_nodes ; ++ix){
+
+    for(jx = 0 ; jx < N ; ++jx){
+
+      // Integration nodes; n_nodes-by-N; for example, for N = 2 and
+      // Qn=2, z = [1 1; -1 1; 1 -1; -1 -1]
+      z[ix + jx*n_nodes] = z1[ix + jx*n_nodes]*sqrt(2);
+
+    }
+
+    // Integration weights; see condition (B.6) in the Supplement to
+    // JMM (2011); n_nodes-by-1
+    weight_nodes[ix] = w1[ix]/pow(pi, N/2);
+
+  }
+
+  //==========================================================================
+  // 3. N-dimensional integration nodes and weights for N correlated normally
+  //    distributed random variables with zero mean and variance-covariance
+  //    matrix, vcv
+  //==========================================================================
+
+  // compute the cholesky decomp of variance-covariance matrix
+  int info;
+  if(typeid(realtype) == typeid(singletype)){
+    spotrf("U", &N, (float*)vcv, &N, &info);
+  } else if(typeid(realtype) == typeid(doubletype)){
+    dpotrf("U", &N, (double*)vcv, &N, &info);
+  }
+
+  for(ix = 1 ; ix < N ; ++ix){
+    for(jx = 0 ; jx < ix ; ++jx){
+      vcv[ix + jx*N] = 0.0;
+    }
+  }
+
+  // Integration nodes; see condition (B.6) in the Supplement
+  // to JMM (2011); n_nodes-by-N
+  if(typeid(realtype) == typeid(singletype)){
+    float f_alpha = 1.0;
+    float f_beta = 0.0;
+    sgemm("N", "N", &n_nodes, &N, &N, &f_alpha, (float*)z, &n_nodes,
+	  (float*)vcv, &N, &f_beta, (float*)epsi_nodes, &n_nodes);
+  } else if(typeid(realtype) == typeid(doubletype)){
+    double d_alpha = 1.0;
+    double d_beta = 0.0;
+    dgemm("N", "N", &n_nodes, &N, &N, &d_alpha, (double*)z, &n_nodes,
+	  (double*)vcv, &N, &d_beta, (double*)epsi_nodes, &n_nodes);
+  }
+}

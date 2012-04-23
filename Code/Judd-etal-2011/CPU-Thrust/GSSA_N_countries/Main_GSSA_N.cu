@@ -56,7 +56,6 @@
 #include "global.h"
 #include <math.h>
 #include <iostream>
-#include <stdio.h>
 #include <iomanip>
 #include <fstream>
 #include <ctime>
@@ -64,7 +63,6 @@
 #include <vector>
 #include "BasicFunctors.hpp"
 #include <thrust/host_vector.h>
-#include <thrust/device_vector.h>
 #include <thrust/transform.h>
 #include <thrust/copy.h>
 #include <thrust/for_each.h>
@@ -140,9 +138,7 @@ int main()
 
   // Initial conditions for capital and productivity (equal to steady state)
   thrust::host_vector<REAL> k(Tplus1*N);
-  thrust::device_vector<REAL> dk(Tplus1*N);
   thrust::host_vector<REAL> a(T*N);
-  thrust::device_vector<REAL> da(T*N);
   for(jx = 0 ; jx < N ; ++jx){
     k[jx*(T+1)] = 1;
     a[jx*T] = 1;
@@ -261,7 +257,6 @@ int main()
   // series are used to check the convergence on the subsequent iteration
   // (initially, capital can take any value); (T+1)-by-N
   thrust::host_vector<REAL> k_old(Tplus1*N);
-  thrust::device_vector<REAL> dk_old(Tplus1*N);
   for(ix = 0 ; ix < (T+1) ; ++ix){
     for(jx = 0 ; jx < N ; ++jx){
       k_old[ix + jx*(T+1)] = 1.0;
@@ -275,14 +270,10 @@ int main()
   // auxiliary variables and storage
   vector<REAL> x(T*nStates);   // storage for basis functions
   vector<REAL> C(T);           // storage for aggregate consumption
-  thrust::device_vector<REAL> dC(T);
   vector<REAL> c(T*N);         // storage for individual consumption
-  thrust::device_vector<REAL> dc(T*N);
   thrust::host_vector<REAL> Y(Tminus1*N);     // storage for income
-  thrust::device_vector<REAL> dY(Tminus1*N);     // storage for income
   vector<REAL> Y_copy(Tminus1*N);     // storage for income
   thrust::host_vector<REAL> a1(T*N), k2(T*N), c1(T*N);  // variables for euler equation errors
-  thrust::device_vector<REAL> da1(T*N), dk2(T*N), dc1(T*N);  // variables for euler equation errors
   
   // storage for linear regression variables (including SVD variables)
   int count = 0;
@@ -410,8 +401,8 @@ int main()
     // on the subsequent iteration
     k.swap(k_old);
     ++count;
-    //cout<< "Iteration: " << count <<endl;
-    //cout<< "dif_1d: " << dif_1d <<endl;
+    cout<< "Iteration: " << count <<endl;
+    cout<< "dif_1d: " << dif_1d <<endl;
   }
 
   //==========================================================================
@@ -419,7 +410,7 @@ int main()
   //==========================================================================
   double toc = curr_second();
   REAL time_GSSA_1d = toc - tic; 
-  //cout << time_GSSA_1d << endl;
+  cout << time_GSSA_1d << endl;
 
   //==========================================================================
   // Compute polynomial solutions of the degrees from one to D_max using one 
@@ -544,21 +535,16 @@ int main()
   int n_cols, D;
   vector<REAL> poly_X; poly_X.reserve(T*npol[D_max-1]);
   thrust::host_vector<REAL> poly_X_integral; poly_X_integral.reserve(T*npol[D_max-1]);
-  thrust::device_vector<REAL> dpoly_X_integral(T*npol[D_max-1]);
   vector<REAL> poly_X_row; poly_X_row.reserve(npol[D_max-1]);
   thrust::host_vector<REAL> bk_D(npol[D_max-1]*N);
-  thrust::device_vector<REAL> dbk_D(npol[D_max-1]*N);
   vector<REAL> bk_hat_D; bk_hat_D.reserve(npol[D_max-1]*N);
-  vector<REAL> time_GSSA(D_max);  thrust::counting_iterator<int> zero_iter(0);
-  thrust::device_vector<int> seq_vec(T);
+  vector<REAL> time_GSSA(D_max);
+  thrust::counting_iterator<int> zero_iter(0);
+  thrust::host_vector<int> seq_vec(T);
   thrust::sequence(seq_vec.begin(), seq_vec.end());
-  cublasHandle_t handle;
-  cublasStatus_t status;
-  status = cublasCreate(&handle);
 
   // Matrix which holds data for polynomial bases - begin with only shocks
   thrust::host_vector<REAL> X1(T*2*N), X1_integral(T*2*N);
-  thrust::device_vector<REAL> dX1(T*2*N), dX1_integral(T*2*N);
   for(ix = 0 ; ix < T ; ++ix){
     for(jx = N ; jx < 2*N ; ++jx){
       X1[ix + jx*T] = a[ix + (jx-N)*T];
@@ -616,7 +602,7 @@ int main()
     vector<REAL> X1_row(2*N);
     vector<REAL> k_row(N);
     while(dif_GSSA_D > pow(10.0,-4-D)*kdamp){
-      tic= curr_second();    
+
       //======================================================================
       // 15.2.1 Generate time series of capital
       //======================================================================
@@ -714,44 +700,47 @@ int main()
       // given weights 
       //======================================================================
       else{
-	toc = curr_second();
-	cout << "first time: " << toc - tic << endl;
-	tic = curr_second();
-	thrust::copy(Y.begin(), Y.end(), dY.begin());
-	thrust::copy(a.begin(), a.end(), da.begin());
-	thrust::copy(k.begin(), k.end(), dk.begin());
-	thrust::copy(bk_D.begin(), bk_D.end(), dbk_D.begin());
-	thrust::copy(c.begin(), c.end(), dc.begin());
-	toc = curr_second();
-	cout << "Copy time: " << toc - tic << endl;
-	tic = curr_second();
 
 	// Initialize variable Y
-	thrust::fill(dY.begin(), dY.begin()+Tminus1*N, 0.0);
+	thrust::fill(Y.begin(), Y.begin()+Tminus1*N, 0.0);
 
 	// Compute Euler Equation Errors via integration
 	for(hx = 0 ; hx < n_nodes ; ++hx){
+
+	  tic = curr_second();
+
 	  for(jx = 0 ; jx < N ; ++jx){
-	    thrust::transform(da.begin()+jx*T, da.begin()+(jx+1)*T, da1.begin()+jx*T, productivity_functor<REAL>(rho, epsi_nodes[hx+jx*n_nodes]));
-	    thrust::copy(dk.begin()+jx*Tplus1+1, dk.begin()+(jx+1)*Tplus1, dX1_integral.begin()+jx*T);
-	    thrust::copy(da1.begin()+jx*T, da1.begin()+(jx+1)*T, dX1_integral.begin()+(jx+N)*T);
+	    thrust::transform(a.begin()+jx*T, a.begin()+(jx+1)*T, a1.begin()+jx*T, productivity_functor<REAL>(rho, epsi_nodes[hx+jx*n_nodes]));
+	    thrust::copy(k.begin()+jx*Tplus1+1, k.begin()+(jx+1)*Tplus1, X1_integral.begin()+jx*T);
+	    thrust::copy(a1.begin()+jx*T, a1.begin()+(jx+1)*T, X1_integral.begin()+(jx+N)*T);
 	  }
 
+	  toc = curr_second();
+	  cout << "First time: " << toc - tic << endl;
+	  tic = curr_second();
+
 	  // Polynomial bases
+	  poly_X_integral.resize(T*n_cols);
 	  thrust::for_each(seq_vec.begin(), seq_vec.end(),
-			   Ord_Polynomial_N_functor<REAL>(T, 2*N, D, thrust::raw_pointer_cast(&dX1_integral[0]),
-							  thrust::raw_pointer_cast(&dpoly_X_integral[0])));
+			   Ord_Polynomial_N_functor<REAL>(T, 2*N, D, &X1_integral[0], &poly_X_integral[0]));
+
+	  toc = curr_second();
+	  cout << "Second time: " << toc - tic << endl;
+	  tic = curr_second();
 
 	  // Compute capital of period t+2 (chosen at t+1) using the
 	  // capital policy functions; n_nodes-by-N 
-	  status = cublasDgemm(handle, CUBLAS_OP_N, CUBLAS_OP_N, T, N, n_cols, &d_alpha,
-			       thrust::raw_pointer_cast(&dpoly_X_integral[0]), T,
-			       thrust::raw_pointer_cast(&dbk_D[0]), n_cols, &d_beta,
-			       thrust::raw_pointer_cast(&dk2[0]), T);
-	  if (status != CUBLAS_STATUS_SUCCESS) {
-	    fprintf (stderr, "!!!! kernel execution error.\n");
-	    return EXIT_FAILURE;
+	  if(typeid(realtype) == typeid(singletype)){
+	    sgemm("N", "N", &T, &N, &n_cols, &f_alpha, (float*)&poly_X_integral[0],
+		  &T, (float*)&bk_D[0], &n_cols, &f_beta, (float*)&k2[0], &T);
+	  } else if(typeid(realtype) == typeid(doubletype)){
+	    dgemm("N", "N", &T, &N, &n_cols, &d_alpha, (double*)&poly_X_integral[0],
+		  &T, (double*)&bk_D[0], &n_cols, &d_beta, (double*)&k2[0], &T);
 	  }
+
+	  toc = curr_second();
+	  cout << "Third time: " << toc - tic << endl;
+	  tic = curr_second();
 
 	  // C is computed by summing up individual consumption, which in
 	  // turn, is found from the individual budget constraints; T-by-1
@@ -759,58 +748,62 @@ int main()
 	    thrust::for_each(
 			     // Starting tuple
 			     thrust::make_zip_iterator(           
-						       thrust::make_tuple(dk.begin()+jx*Tplus1+1,
-									  da1.begin()+jx*T, 
-									  dk2.begin()+jx*T,
-									  dc1.begin()+jx*T)),
+						       thrust::make_tuple(k.begin()+jx*Tplus1+1,
+									  a1.begin()+jx*T, 
+									  k2.begin()+jx*T,
+									  c1.begin()+jx*T)),
 			     // Ending tuple (note all vectors should be same length)
 			     thrust::make_zip_iterator(
-						       thrust::make_tuple(dk.begin()+(jx+1)*Tplus1,
-									  da1.begin()+(jx+1)*T,
-									  dk2.begin()+(jx+1)*T,
-									  dc1.begin()+(jx+1)*T)),
+						       thrust::make_tuple(k.begin()+(jx+1)*Tplus1,
+									  a1.begin()+(jx+1)*T,
+									  k2.begin()+(jx+1)*T,
+									  c1.begin()+(jx+1)*T)),
 			     // Functor to apply
 			     consumption_functor<REAL>(A, alpha, delta));
 	  }
-	  thrust::transform(zero_iter, zero_iter+T, dC.begin(), agg_consumption_functor<REAL>(T,N,thrust::raw_pointer_cast(&dc1[0])));
+	  thrust::transform(zero_iter, zero_iter+T, C.begin(), agg_consumption_functor<REAL>(T,N,&c1[0]));
+
+	  toc = curr_second();
+	  cout << "Fourth time: " << toc - tic << endl;
+	  tic = curr_second();
 
 	  // Compute next-period consumption for N countries; n_nodes-by-N
 	  for(ix = 0 ; ix < T ; ++ix){
 	    for(jx = 0 ; jx < N ; ++jx){
-	      dc1[ix + jx*T] = dC[ix]/N;
+	      c1[ix + jx*T] = C[ix]/N;
 	    }
 	  }
+
+	  toc = curr_second();
+	  cout << "Fifth time: " << toc - tic << endl;
+	  tic = curr_second();
 
 	  // Sum Euler Equation errors over integration weights
 	  for(jx = 0 ; jx < N ; ++jx){
 	    thrust::for_each(
 			     // Starting tuple
 			     thrust::make_zip_iterator(           
-						       thrust::make_tuple(dk.begin()+jx*Tplus1+1,
-									  da1.begin()+jx*T, 
-									  dc.begin()+jx*T,
-									  dc1.begin()+jx*T,
-									  dY.begin()+jx*Tminus1)),
+						       thrust::make_tuple(k.begin()+jx*Tplus1+1,
+									  a1.begin()+jx*T, 
+									  c.begin()+jx*T,
+									  c1.begin()+jx*T,
+									  Y.begin()+jx*Tminus1)),
 			     // Ending tuple (note all vectors should be same length)
 			     thrust::make_zip_iterator(
-						       thrust::make_tuple(dk.begin()+(jx+1)*Tplus1-1,
-									  da1.begin()+(jx+1)*T-1,
-									  dc.begin()+(jx+1)*T-1,
-									  dc1.begin()+(jx+1)*T-1,
-									  dY.begin()+(jx+1)*Tminus1)),
+						       thrust::make_tuple(k.begin()+(jx+1)*Tplus1-1,
+									  a1.begin()+(jx+1)*T-1,
+									  c.begin()+(jx+1)*T-1,
+									  c1.begin()+(jx+1)*T-1,
+									  Y.begin()+(jx+1)*Tminus1)),
 			     // Functor to apply
 			     euler_functor<REAL>(A, alpha, beta, delta, gam, weight_nodes[hx]));
 	  }
 	
+	  toc = curr_second();
+	  cout << "Sixth time: " << toc - tic << endl;
+	  tic = curr_second();
 	  
 	}
-	toc = curr_second();
-	cout << "Second time: " << toc - tic << endl;
-	tic = curr_second();
-	thrust::copy(dY.begin(), dY.end(), Y.begin());
-	toc = curr_second();
-	cout << "Second Copy: " << toc - tic << endl;
-	tic = curr_second();
       }
 
       //======================================================================
@@ -851,8 +844,6 @@ int main()
 
       // The stored capital series will be used for checking the convergence
       // on the subsequent iteration
-	toc = curr_second();
-	cout << "Last time: " << toc - tic << endl;
       k.swap(k_old);
       ++count;
       cout << "Order of Integration: " << D << endl;
@@ -1042,8 +1033,6 @@ int main()
   cout << endl;
 
   //save Results_N time_GSSA time_test Errors_mean Errors_max kdamp RM IM N T BK k_test a_test IM_test alpha gam delta beta A tau rho vcv discard npol D_max T_test ;
-
-  status = cublasDestroy(handle);
 
   return 0;
 }
