@@ -82,7 +82,7 @@ int main()
                     // code also works for the one-country case, N=1)
   int Ndat;         // Either number of countries in existing data set or
                     // number of countries in created data set
-  int T     = 200; // Choose the simulation length for the solution procedure,
+  int T     = 2000; // Choose the simulation length for the solution procedure,
                     // T<=10,000   
   int Tminus1 = T-1;
   int Tplus1 = T+1;
@@ -401,8 +401,8 @@ int main()
     // on the subsequent iteration
     k.swap(k_old);
     ++count;
-    cout<< "Iteration: " << count <<endl;
-    cout<< "dif_1d: " << dif_1d <<endl;
+    //cout<< "Iteration: " << count <<endl;
+    //cout<< "dif_1d: " << dif_1d <<endl;
   }
 
   //==========================================================================
@@ -410,7 +410,7 @@ int main()
   //==========================================================================
   double toc = curr_second();
   REAL time_GSSA_1d = toc - tic; 
-  cout << time_GSSA_1d << endl;
+  //cout << time_GSSA_1d << endl;
 
   //==========================================================================
   // Compute polynomial solutions of the degrees from one to D_max using one 
@@ -707,26 +707,16 @@ int main()
 	// Compute Euler Equation Errors via integration
 	for(hx = 0 ; hx < n_nodes ; ++hx){
 
-	  tic = curr_second();
-
 	  for(jx = 0 ; jx < N ; ++jx){
 	    thrust::transform(a.begin()+jx*T, a.begin()+(jx+1)*T, a1.begin()+jx*T, productivity_functor<REAL>(rho, epsi_nodes[hx+jx*n_nodes]));
 	    thrust::copy(k.begin()+jx*Tplus1+1, k.begin()+(jx+1)*Tplus1, X1_integral.begin()+jx*T);
 	    thrust::copy(a1.begin()+jx*T, a1.begin()+(jx+1)*T, X1_integral.begin()+(jx+N)*T);
 	  }
 
-	  toc = curr_second();
-	  cout << "First time: " << toc - tic << endl;
-	  tic = curr_second();
-
 	  // Polynomial bases
 	  poly_X_integral.resize(T*n_cols);
 	  thrust::for_each(seq_vec.begin(), seq_vec.end(),
 			   Ord_Polynomial_N_functor<REAL>(T, 2*N, D, &X1_integral[0], &poly_X_integral[0]));
-
-	  toc = curr_second();
-	  cout << "Second time: " << toc - tic << endl;
-	  tic = curr_second();
 
 	  // Compute capital of period t+2 (chosen at t+1) using the
 	  // capital policy functions; n_nodes-by-N 
@@ -737,10 +727,6 @@ int main()
 	    dgemm("N", "N", &T, &N, &n_cols, &d_alpha, (double*)&poly_X_integral[0],
 		  &T, (double*)&bk_D[0], &n_cols, &d_beta, (double*)&k2[0], &T);
 	  }
-
-	  toc = curr_second();
-	  cout << "Third time: " << toc - tic << endl;
-	  tic = curr_second();
 
 	  // C is computed by summing up individual consumption, which in
 	  // turn, is found from the individual budget constraints; T-by-1
@@ -761,22 +747,9 @@ int main()
 			     // Functor to apply
 			     consumption_functor<REAL>(A, alpha, delta));
 	  }
-	  thrust::transform(zero_iter, zero_iter+T, C.begin(), agg_consumption_functor<REAL>(T,N,&c1[0]));
-
-	  toc = curr_second();
-	  cout << "Fourth time: " << toc - tic << endl;
-	  tic = curr_second();
 
 	  // Compute next-period consumption for N countries; n_nodes-by-N
-	  for(ix = 0 ; ix < T ; ++ix){
-	    for(jx = 0 ; jx < N ; ++jx){
-	      c1[ix + jx*T] = C[ix]/N;
-	    }
-	  }
-
-	  toc = curr_second();
-	  cout << "Fifth time: " << toc - tic << endl;
-	  tic = curr_second();
+	  thrust::for_each(seq_vec.begin(), seq_vec.end(), ind_consumption_functor<REAL>(T, N, &c1[0]));
 
 	  // Sum Euler Equation errors over integration weights
 	  for(jx = 0 ; jx < N ; ++jx){
@@ -799,10 +772,6 @@ int main()
 			     euler_functor<REAL>(A, alpha, beta, delta, gam, weight_nodes[hx]));
 	  }
 	
-	  toc = curr_second();
-	  cout << "Sixth time: " << toc - tic << endl;
-	  tic = curr_second();
-	  
 	}
       }
 
@@ -846,9 +815,9 @@ int main()
       // on the subsequent iteration
       k.swap(k_old);
       ++count;
-      cout << "Order of Integration: " << D << endl;
-      cout<< "Iteration: " << count <<endl;
-      cout<< "dif_GSSA_D: " << dif_GSSA_D <<endl;
+      //cout << "Order of Integration: " << D << endl;
+      //cout<< "Iteration: " << count <<endl;
+      //cout<< "dif_GSSA_D: " << dif_GSSA_D <<endl;
     }
 
     //========================================================================
@@ -865,7 +834,7 @@ int main()
     // Time needed to compute the polynomial solution of degree D
     toc = curr_second();
     time_GSSA[D-1] = toc - tic; 
-    cout << time_GSSA[D-1] << endl;
+    cout << "Order D = " << D << " time is " << time_GSSA[D-1] << endl;
 
   }
   

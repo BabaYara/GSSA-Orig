@@ -103,20 +103,20 @@ struct euler_functor
 };
 
 template <typename T>
-struct agg_consumption_functor
+struct ind_consumption_functor
 {
   const int M;
   const int N;
   T* c;
-  agg_consumption_functor(int _M, int _N, T* _c) : M(_M), N(_N), c(_c) {}
+  ind_consumption_functor(int _M, int _N, T* _c) : M(_M), N(_N), c(_c) {}
 
   __host__ __device__
-  T operator()(const int& row)
+  void operator()(const int& row)
   { 
     int jx;
-    T Cons = 0;
-    for(jx = 0 ; jx < N ; ++jx) Cons += c[row+jx*M];
-    return Cons;
+    T AggCons = 0;
+    for(jx = 0 ; jx < N ; ++jx) AggCons += c[row+jx*M];
+    for(jx = 0 ; jx < N ; ++jx) c[row+jx*M] = AggCons/N;    
   }
 };
 
