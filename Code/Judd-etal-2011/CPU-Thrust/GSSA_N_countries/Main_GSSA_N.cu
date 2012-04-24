@@ -78,11 +78,11 @@ int main()
   //==========================================================================
   // 1. Choose the number of countries and simulation length
   //==========================================================================
-  int N     = 2;    // Choose the number of countries, 1<=N<=10 (note that the
+  int N     = 10;    // Choose the number of countries, 1<=N<=10 (note that the
                     // code also works for the one-country case, N=1)
   int Ndat;         // Either number of countries in existing data set or
                     // number of countries in created data set
-  int T     = 2000; // Choose the simulation length for the solution procedure,
+  int T     = 1000; // Choose the simulation length for the solution procedure,
                     // T<=10,000   
   int Tminus1 = T-1;
   int Tplus1 = T+1;
@@ -401,8 +401,8 @@ int main()
     // on the subsequent iteration
     k.swap(k_old);
     ++count;
-    //cout<< "Iteration: " << count <<endl;
-    //cout<< "dif_1d: " << dif_1d <<endl;
+    cout<< "Iteration: " << count <<endl;
+    cout<< "dif_1d: " << dif_1d <<endl;
   }
 
   //==========================================================================
@@ -410,7 +410,7 @@ int main()
   //==========================================================================
   double toc = curr_second();
   REAL time_GSSA_1d = toc - tic; 
-  //cout << time_GSSA_1d << endl;
+  cout << time_GSSA_1d << endl;
 
   //==========================================================================
   // Compute polynomial solutions of the degrees from one to D_max using one 
@@ -441,7 +441,7 @@ int main()
   //==========================================================================
   // Maximum degree of a polynomial: the program computes polynomial
   // solutions of the degrees from one to D_max; (D_max can be from 1 to 5)
-  int D_max  = 5;
+  int D_max  = 2;
 
   // For the polynomial degrees from one to D_max compute the number of
   // polynomial bases (this is needed for finding the number of the
@@ -815,9 +815,9 @@ int main()
       // on the subsequent iteration
       k.swap(k_old);
       ++count;
-      //cout << "Order of Integration: " << D << endl;
-      //cout<< "Iteration: " << count <<endl;
-      //cout<< "dif_GSSA_D: " << dif_GSSA_D <<endl;
+      cout << "Order of Integration: " << D << endl;
+      cout<< "Iteration: " << count <<endl;
+      cout<< "dif_GSSA_D: " << dif_GSSA_D <<endl;
     }
 
     //========================================================================
@@ -886,7 +886,7 @@ int main()
   //===========================================================================
 
   // See paragraph 13 for the integration options
-  int IM_test = 11;
+  int IM_test = 12;
 
   // To implement the test on a stochastic simulation with T_test>10,200, one
   // needs to simulate new series of the productivity levels with larger T_test 
