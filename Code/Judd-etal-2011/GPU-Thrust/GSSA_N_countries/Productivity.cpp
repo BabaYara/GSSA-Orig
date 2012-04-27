@@ -53,7 +53,7 @@ void Productivity(int T, int N, REAL* a, REAL sigma, REAL rho)
   // JMM (2011); 1-by-N 
   for(jx = 0 ; jx < N ; ++jx){
     for(ix = 0 ; ix < (T-1) ; ++ix){
-      a[(ix+1) + jx*(T-1)] = pow(a[ix + jx*(T-1)], rho)*exp(epsi[(ix+1) + jx*(T-1)]);
+      a[(ix+1) + jx*T] = pow(a[ix + jx*T], rho)*exp(epsi[(ix+1) + jx*T]);
     }
   }
 
