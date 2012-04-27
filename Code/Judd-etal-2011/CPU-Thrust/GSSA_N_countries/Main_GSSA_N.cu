@@ -82,7 +82,7 @@ int main()
                     // code also works for the one-country case, N=1)
   int Ndat;         // Either number of countries in existing data set or
                     // number of countries in created data set
-  int T     = 1000; // Choose the simulation length for the solution procedure,
+  int T     = 10000; // Choose the simulation length for the solution procedure,
                     // T<=10,000   
   int Tminus1 = T-1;
   int Tplus1 = T+1;
@@ -196,6 +196,8 @@ int main()
     }
     fileIn.close();
   }
+
+  cout << "Done" << endl;
 
   //==========================================================================
   // Compute a first-degree polynomial solution using the one-node Monte Carlo  
@@ -475,7 +477,7 @@ int main()
   // dimension, respectively;
   // 11 = Monomial rule with 2N nodes;
   // 12 = Monomial rule with 2N^2+1 nodes
-  int IM = 12;
+  int IM = 0;
   vector<REAL> epsi_nodes;
   vector<REAL> weight_nodes;
   int n_nodes;
@@ -518,12 +520,12 @@ int main()
   // 14. Choose an regression method 
   //==========================================================================
 
-  int RM = 6;        // Choose a regression method: 
+  int RM = 5;        // Choose a regression method: 
                      // 1=OLS,          2=LS-SVD,   3=LAD-PP,  4=LAD-DP, 
                      // 5=RLS-Tikhonov, 6=RLS-TSVD, 7=RLAD-PP, 8=RLAD-DP
   int normalize = 1; // Option of normalizing the data; 0=unnormalized data; 
                      // 1=normalized data                    
-  int penalty = 7;   // Degree of regularization for a regularization methods, 
+  int penalty = -5;   // Degree of regularization for a regularization methods, 
                      // RM=5,6,7,8 (must be negative, e.g., -7 for RM=5,7,8 
                      // and must be positive, e.g., 7, for RM=6)
 
@@ -677,16 +679,16 @@ int main()
 			     // Starting tuple
 			     thrust::make_zip_iterator(           
 						       thrust::make_tuple(k.begin()+jx*Tplus1+1,
-									  a1.begin()+jx*T, 
+									  a.begin()+jx*T+1, 
 									  c.begin()+jx*T,
-									  c1.begin()+jx*T,
+									  c.begin()+jx*T+1,
 									  Y.begin()+jx*Tminus1)),
 			     // Ending tuple (note all vectors should be same length)
 			     thrust::make_zip_iterator(
 						       thrust::make_tuple(k.begin()+(jx+1)*Tplus1-1,
-									  a1.begin()+(jx+1)*T-1,
+									  a.begin()+(jx+1)*T,
 									  c.begin()+(jx+1)*T-1,
-									  c1.begin()+(jx+1)*T-1,
+									  c.begin()+(jx+1)*T,
 									  Y.begin()+(jx+1)*Tminus1)),
 			     // Functor to apply
 			     euler_functor_mc<REAL>(A, alpha, beta, delta, gam));
@@ -886,7 +888,7 @@ int main()
   //===========================================================================
 
   // See paragraph 13 for the integration options
-  int IM_test = 12;
+  int IM_test = 11;
 
   // To implement the test on a stochastic simulation with T_test>10,200, one
   // needs to simulate new series of the productivity levels with larger T_test 

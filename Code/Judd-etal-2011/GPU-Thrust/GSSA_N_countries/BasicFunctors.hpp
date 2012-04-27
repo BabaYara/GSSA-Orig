@@ -60,15 +60,15 @@ struct euler_functor_mc
   { 
     // For this the zip order is:
     // 0: k
-    // 1: a1
+    // 1: a
     // 2: c
     // 3: c1
     // 4: Y
     T k = thrust::get<0>(t);
-    T a1 = thrust::get<1>(t);
+    T a = thrust::get<1>(t);
     T c = thrust::get<2>(t);
     T c1 = thrust::get<3>(t);
-    thrust::get<4>(t) = beta*((T)std::pow(c1/c,-gam))*(1-delta+alpha*A*((T)std::pow(k,alpha-1))*a1)*k;
+    thrust::get<4>(t) = beta*((T)std::pow(c1/c,-gam))*(1-delta+alpha*A*((T)std::pow(k,alpha-1))*a)*k;
   }
 };
 
