@@ -14,8 +14,8 @@ IMAGMA = /sw/keeneland/magma/1.1/centos5.5_gnu4.4/magma_1.1.0/include
 LMAGMA = /sw/keeneland/magma/1.1/centos5.5_gnu4.4/magma_1.1.0/lib
 
 # Add CUDA Paths
-ICUDA = /sw/keeneland/cuda/4.1/linux_binary/include
-LCUDA = /sw/keeneland/cuda/4.1/linux_binary/lib64
+ICUDA = /sw/keeneland/cuda/4.2/linux_binary/include
+LCUDA = /sw/keeneland/cuda/4.2/linux_binary/lib64
 
 # Add MKL to the link line
 LFLAGS = -L$(LMKL) -lm -lpthread -openmp -lmkl_intel_lp64 -lmkl_intel_thread -lmkl_core -liomp5
